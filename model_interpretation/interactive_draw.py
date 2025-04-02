@@ -6,12 +6,16 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageDraw, ImageTk
 from scipy.ndimage import gaussian_filter
+import traceback  # Add traceback import
 
 # Add the project root to the path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models.specific_models.StandardFullyConnected import StandardFullyConnected
 from models.specific_models.StandardConvNet import StandardConvNet
+from models.specific_models.BranchingMergingCNN import BranchingMergingCNN
+from models.specific_models.ResNet import ResNet
+from utils.data_loader import MNISTDataLoader
 
 def find_available_models():
     """Find all available trained models in the trainers/outputs directory."""
@@ -25,7 +29,16 @@ def find_available_models():
         model_path = os.path.join(outputs_dir, model_dir, 'checkpoints', 'model_best.pt')
         if os.path.exists(model_path):
             # Extract model type from directory name
-            model_type = 'fc' if 'fully_connected' in model_dir.lower() else 'conv'
+            model_dir_lower = model_dir.lower()
+            if 'fully_connected' in model_dir_lower or 'fc' in model_dir_lower:
+                model_type = 'fc'
+            elif 'branching' in model_dir_lower:
+                model_type = 'branching'
+            elif 'resnet' in model_dir_lower:
+                model_type = 'resnet'
+            else:
+                model_type = 'conv'
+            print(f"Found model: {model_dir} -> type: {model_type}")
             models.append({
                 'name': model_dir,
                 'path': model_path,
@@ -50,7 +63,11 @@ class DigitDrawer:
             'low_conf': '#ef4444',      # Red for low confidence
             'mid_conf': '#f59e0b',      # Amber for medium confidence
             'surface': '#1e293b',       # Lighter surface color
-            'border': '#334155'         # Border color
+            'border': '#334155',        # Border color
+            'success': '#22c55e',       # Success green
+            'success_hover': '#16a34a', # Success green hover
+            'error': '#ef4444',         # Error red
+            'error_hover': '#dc2626'    # Error red hover
         }
         
         self.root.configure(bg=self.colors['bg'])
@@ -75,6 +92,11 @@ class DigitDrawer:
         # Shift settings
         self.shift_start = None
         
+        # Initialize data loaders for samples
+        self.data_loader = MNISTDataLoader(batch_size=1, preload_gpu=False)
+        self.train_loader = iter(self.data_loader.get_train_loader())
+        self.test_loader = iter(self.data_loader.get_test_loader())
+        
         # Configure ttk styles
         self.setup_styles()
         
@@ -85,6 +107,10 @@ class DigitDrawer:
         self.root.update()
         self.root.minsize(self.root.winfo_width(), self.root.winfo_height())
         self.root.maxsize(self.root.winfo_width(), self.root.winfo_height())
+        
+        # Initialize prediction variables
+        self.predicted_label = None
+        self.true_label = None
         
     def setup_styles(self):
         """Configure ttk styles for widgets."""
@@ -177,16 +203,29 @@ class DigitDrawer:
         checkpoint = torch.load(model_path)
         state_dict = checkpoint['model_state_dict']
         
-        # Determine model type from state dict structure
-        is_fully_connected = any('model.' in key for key in state_dict.keys())
+        # Determine model type from the current model info
+        model_type = self.current_model['type']
         
-        # Create appropriate model
-        if is_fully_connected:
+        # Create appropriate model based on type
+        if model_type == 'fc':
             model = StandardFullyConnected()
+        elif model_type == 'branching':
+            model = BranchingMergingCNN()
+        elif model_type == 'resnet':
+            model = ResNet()
         else:
             model = StandardConvNet()
             
-        model.load_state_dict(checkpoint['model_state_dict'])
+        # Clean state dict by removing 'module.' prefix if it exists
+        cleaned_state_dict = {}
+        for k, v in state_dict.items():
+            if k.startswith('module.'):
+                cleaned_state_dict[k[7:]] = v
+            else:
+                cleaned_state_dict[k] = v
+                
+        # Load state dict with strict=False to ignore unexpected keys
+        model.load_state_dict(cleaned_state_dict, strict=False)
         model.eval()
         return model
         
@@ -197,6 +236,10 @@ class DigitDrawer:
             if model['name'] == selected_name:
                 self.current_model = model
                 self.model = self._load_model(model['path'])
+                print(f"Switched to model: {model['name']} ({model['type']})")
+                # Reset data loaders when switching models
+                self.train_loader = iter(self.data_loader.get_train_loader())
+                self.test_loader = iter(self.data_loader.get_test_loader())
                 break
         self.clear_canvas()
         
@@ -316,18 +359,94 @@ class DigitDrawer:
             self.conf_bars.append(bar)
             self.conf_labels.append(conf_label)
         
-        # Buttons frame
+        # Buttons frame with two rows
         btn_frame = ttk.Frame(main_frame, style='Dark.TFrame')
         btn_frame.pack(fill='x', pady=20)
         
-        # Clear button with modern style using tk.Button instead of ttk.Button
+        # Top row - Clear and basic sample loading
+        top_btn_frame = ttk.Frame(btn_frame, style='Dark.TFrame')
+        top_btn_frame.pack(fill='x', pady=(0, 10))
+        
+        # Clear button
         clear_btn = tk.Button(
-            btn_frame,
+            top_btn_frame,
             text="Clear Canvas",
             command=self.clear_canvas,
             **self.custom_button
         )
         clear_btn.pack(side='left', padx=5)
+        
+        # Bottom row - Correct/Incorrect samples
+        bottom_btn_frame = ttk.Frame(btn_frame, style='Dark.TFrame')
+        bottom_btn_frame.pack(fill='x')
+        
+        # Training samples - Correct
+        load_train_correct_btn = tk.Button(
+            bottom_btn_frame,
+            text="Load Correct (Train)",
+            command=lambda: self.load_classified_sample(True, True),
+            font=('Segoe UI', 11),
+            bg=self.colors['success'],
+            fg=self.colors['text'],
+            activebackground=self.colors['success_hover'],
+            activeforeground=self.colors['text'],
+            relief='flat',
+            padx=10,
+            pady=8,
+            border=0
+        )
+        load_train_correct_btn.pack(side='left', padx=5)
+        
+        # Training samples - Incorrect
+        load_train_incorrect_btn = tk.Button(
+            bottom_btn_frame,
+            text="Load Incorrect (Train)",
+            command=lambda: self.load_classified_sample(True, False),
+            font=('Segoe UI', 11),
+            bg=self.colors['error'],
+            fg=self.colors['text'],
+            activebackground=self.colors['error_hover'],
+            activeforeground=self.colors['text'],
+            relief='flat',
+            padx=10,
+            pady=8,
+            border=0
+        )
+        load_train_incorrect_btn.pack(side='left', padx=5)
+        
+        # Test samples - Correct
+        load_test_correct_btn = tk.Button(
+            bottom_btn_frame,
+            text="Load Correct (Test)",
+            command=lambda: self.load_classified_sample(False, True),
+            font=('Segoe UI', 11),
+            bg=self.colors['success'],
+            fg=self.colors['text'],
+            activebackground=self.colors['success_hover'],
+            activeforeground=self.colors['text'],
+            relief='flat',
+            padx=10,
+            pady=8,
+            border=0
+        )
+        load_test_correct_btn.pack(side='left', padx=5)
+        
+        # Test samples - Incorrect
+        load_test_incorrect_btn = tk.Button(
+            bottom_btn_frame,
+            text="Load Incorrect (Test)",
+            command=lambda: self.load_classified_sample(False, False),
+            font=('Segoe UI', 11),
+            bg=self.colors['error'],
+            fg=self.colors['text'],
+            activebackground=self.colors['error_hover'],
+            activeforeground=self.colors['text'],
+            relief='flat',
+            padx=10,
+            pady=8,
+            border=0
+        )
+        load_test_incorrect_btn.pack(side='left', padx=5)
         
         # Setup drawing events
         self.canvas.bind('<B1-Motion>', self.draw)
@@ -421,41 +540,96 @@ class DigitDrawer:
             bar['value'] = 0
             label.config(text="0.0%")
         
+    def load_classified_sample(self, is_train=True, is_correct=True):
+        """Load a sample that is either correctly or incorrectly classified."""
+        max_attempts = 100
+        attempts = 0
+        status = "correctly" if is_correct else "incorrectly"
+        loader = iter(self.train_loader if is_train else self.test_loader)
+        
+        try:
+            while attempts < max_attempts:
+                try:
+                    data, target = next(loader)
+                except StopIteration:
+                    loader = iter(self.train_loader if is_train else self.test_loader)
+                    data, target = next(loader)
+                
+                # Move model to CPU for prediction
+                self.model.cpu()
+                output = self.model(data)
+                pred = output.argmax(dim=1, keepdim=True)
+                
+                is_correct_pred = pred.eq(target.view_as(pred)).item()
+                if is_correct_pred == is_correct:
+                    # Found a matching sample
+                    self.current_image = data.squeeze().numpy()
+                    self.true_label = target.item()
+                    self.update_canvas()
+                    self.predict()
+                    print(f"Loaded {status} classified {'training' if is_train else 'test'} sample. True: {self.true_label}, Predicted: {self.predicted_label}")
+                    return
+                
+                attempts += 1
+            
+            print(f"Could not find a {status} classified sample after {max_attempts} attempts.")
+            
+        except Exception as e:
+            print(f"Error loading classified sample: {str(e)}")
+            traceback.print_exc()
+        
     def predict(self):
         """Predict the drawn digit."""
-        # Convert to MNIST size (28x28)
-        img_array = np.array(self.image)
-        img_small = Image.fromarray(img_array).resize((self.mnist_size, self.mnist_size), 
-                                                     Image.Resampling.LANCZOS)
-        
-        # Convert to tensor
-        img_tensor = torch.FloatTensor(np.array(img_small)).reshape(1, -1) / 255.0
-        
-        # Get prediction
-        with torch.no_grad():
-            output = self.model(img_tensor)
-            probabilities = torch.softmax(output, dim=1).squeeze().numpy()
-            prediction = probabilities.argmax()
+        try:
+            # Convert to MNIST size (28x28)
+            img_array = np.array(self.image)
+            img_small = Image.fromarray(img_array).resize((self.mnist_size, self.mnist_size), 
+                                                         Image.Resampling.LANCZOS)
             
-        # Update prediction label
-        confidence = probabilities[prediction] * 100
-        self.pred_label.config(
-            text=f"Prediction: {prediction}\nConfidence: {confidence:.1f}%"
-        )
-        
-        # Update confidence bars with color coding
-        max_prob = probabilities.max()
-        for i, (prob, bar, label) in enumerate(zip(probabilities, self.conf_bars, self.conf_labels)):
-            bar['value'] = prob * 100
-            label.config(text=f"{prob*100:.1f}%")
+            # Convert to tensor and normalize
+            img_array = np.array(img_small)
             
-            # Color the bar based on probability
-            if prob == max_prob:
-                bar.configure(style='High.Horizontal.TProgressbar')
-            elif prob > 0.2:
-                bar.configure(style='Mid.Horizontal.TProgressbar')
-            else:
-                bar.configure(style='Low.Horizontal.TProgressbar')
+            # Apply Gaussian blur to reduce noise (especially helpful for BranchingMergingCNN)
+            img_array = gaussian_filter(img_array, sigma=0.5)
+            
+            # Convert to [0,1] range
+            img_tensor = torch.FloatTensor(img_array).unsqueeze(0).unsqueeze(0) / 255.0
+            
+            # Apply MNIST normalization
+            img_tensor = (img_tensor - 0.1307) / 0.3081
+            
+            # Move model to CPU for inference
+            self.model.cpu()
+            
+            # Get prediction
+            with torch.no_grad():
+                output = self.model(img_tensor)
+                probabilities = torch.softmax(output, dim=1).squeeze().numpy()
+                self.predicted_label = probabilities.argmax()
+                
+            # Update prediction label
+            confidence = probabilities[self.predicted_label] * 100
+            self.pred_label.config(
+                text=f"Prediction: {self.predicted_label}\nConfidence: {confidence:.1f}%"
+            )
+            
+            # Update confidence bars with color coding
+            max_prob = probabilities.max()
+            for i, (prob, bar, label) in enumerate(zip(probabilities, self.conf_bars, self.conf_labels)):
+                bar['value'] = prob * 100
+                label.config(text=f"{prob*100:.1f}%")
+                
+                # Color the bar based on probability
+                if prob == max_prob:
+                    bar.configure(style='High.Horizontal.TProgressbar')
+                elif prob > 0.2:
+                    bar.configure(style='Mid.Horizontal.TProgressbar')
+                else:
+                    bar.configure(style='Low.Horizontal.TProgressbar')
+                    
+        except Exception as e:
+            print(f"Error in prediction: {e}")
+            traceback.print_exc()
         
     def update_preview(self):
         """Update the preview of the 28x28 MNIST input."""
@@ -474,6 +648,31 @@ class DigitDrawer:
         # Update preview canvas
         self.preview_canvas.delete('all')
         self.preview_canvas.create_image(0, 0, anchor='nw', image=self.preview_image)
+        
+    def update_canvas(self):
+        """Update the canvas with the current image."""
+        if hasattr(self, 'current_image'):
+            # Denormalize from MNIST normalization (mean=0.1307, std=0.3081)
+            img = self.current_image * 0.3081 + 0.1307
+            
+            # Convert to 0-255 range and uint8
+            img = np.clip(img * 255, 0, 255).astype(np.uint8)
+            
+            # Convert to PIL Image and scale up
+            img = Image.fromarray(img)
+            img = img.resize((self.drawing_size, self.drawing_size), Image.Resampling.LANCZOS)
+            
+            # Update canvas
+            self.canvas.delete('all')
+            self.canvas_image = ImageTk.PhotoImage(img)
+            self.canvas.create_image(0, 0, anchor='nw', image=self.canvas_image)
+            
+            # Update PIL image for drawing
+            self.image = img
+            self.draw = ImageDraw.Draw(self.image)
+            
+            # Update preview
+            self.update_preview()
         
     def run(self):
         """Start the application."""
