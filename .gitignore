@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyTorch model checkpoints - ignore epoch checkpoints but keep best models
+trainers/outputs/*/checkpoints/checkpoint_epoch_*.pt
+!trainers/outputs/*/checkpoints/model_best.pt
+
+# Tensorboard logs
+trainers/outputs/*/logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+
+# OS
+.DS_Store
+Thumbs.db 
