@@ -20,9 +20,8 @@ wheels/
 .installed.cfg
 *.egg
 
-# PyTorch model checkpoints - ignore epoch checkpoints but keep best models
-trainers/outputs/*/checkpoints/checkpoint_epoch_*.pt
-!trainers/outputs/*/checkpoints/model_best.pt
+# PyTorch model checkpoints - ignore all checkpoints
+trainers/outputs/*/checkpoints/*.pt
 
 # Tensorboard logs
 trainers/outputs/*/logs/
