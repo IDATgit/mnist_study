@@ -10,6 +10,39 @@ This project is an in-depth investigation of the MNIST dataset and Deep Neural N
 
 Through this investigation, we aim to gain deeper insights into the practical aspects of neural networks and their application to image recognition tasks.
 
+## Getting Started
+
+1. Clone the repository
+2. Install dependencies: `pip install -r requirements.txt`
+
+3. Inspect input data:
+   ```bash
+   # View dataset statistics and some examples (outputs @data_inspection/output)
+   python data_inspection/scripts/data_inspection.py
+   ```
+   
+
+4. Train models:
+   ```bash
+   # Train convolutional network
+   python trainers/specific_trainers/conv_trainer.py
+   
+   # Train fully connected network 
+   python trainers/specific_trainers/fc_trainer.py
+   
+   # View training progress in TensorBoard
+   tensorboard --logdir=runs/
+   ```
+
+5. Analyze trained models:
+   ```bash
+   # Generate confusion matrices and performance metrics
+   python model_interpretation/basic_interpret.py
+   
+   # live draw and predict intefrace:
+   python model_interpretation/interactive_draw.py
+   ```
+
 ## Project Structure
 
 The project is organized into several key directories, each serving a specific purpose:
@@ -29,7 +62,7 @@ The project is organized into several key directories, each serving a specific p
 ### `models/`
 - Contains two types of neural network implementations:
   - `parametric_models/`: Flexible architectures with configurable parameters
-  - `specific_models/`: Fixed architectures optimized for MNIST
+  - `specific_models/`: Fixed architectures
 - Includes both fully connected and convolutional network implementations
 
 ### `model_interpretation/`
@@ -47,58 +80,67 @@ The project is organized into several key directories, each serving a specific p
   - Checkpoint management
   - TensorBoard logging
 
+for each model specific model there is a specific trainer python file
+### Model-Specific Trainers
+
+- `conv_trainer.py`: Trainer for StandardConvNet
+  - Uses BasicTrainer with optimized hyperparameters for convolutional architecture
+  - Learning rate: 0.001
+  - Batch size: 64
+  - Number of epochs: 50
+  - GPU preloading enabled
+
+- `fc_trainer.py`: Trainer for StandardFCNet
+  - Uses BasicTrainer with hyperparameters tuned for fully connected networks
+  - Learning rate: 0.01
+  - Batch size: 128
+  - Number of epochs: 100
+  - Implements learning rate scheduling
+
+
+
 ### `utils/`
 - Common utilities and helper functions
 - Data loading and preprocessing tools
+- full dataset gpu-preloading option (very usefull for training runtimes).
 
-## Study Insights
+## Study
+### input inspection
 
-*(This section will be updated as the investigation progresses)*
+Below is a sample of 10 handwritten digits from the MNIST dataset:
 
-### Current Findings
+![10 MNIST Examples](data_inspection/output/mnist_digits_grid_10ex.png)
 
-1. **Model Performance**
-   - Both fully connected and convolutional networks achieve high accuracy (>98%) on the test set
-   - Convolutional networks show better generalization and robustness to variations
+in terms of generalization expection with this dataset:  
 
-2. **Architectural Considerations**
-   - Network depth and width impact learning speed and final performance
-   - Batch normalization significantly improves training stability
-   - Dropout helps prevent overfitting, especially in deeper networks
+pros:
+- wide variety of digit styles within each digit label  
 
-3. **Generalization Challenges**
-   - Models trained on MNIST struggle with:
-     - Different writing styles
-     - Rotated digits
-     - Varying stroke widths
-     - Noisy or distorted inputs
+cons:
+- very well centered 
+- consistant sizes  
 
-### Ongoing Investigations
+those properties will be investigated later on.  
+  
 
-1. **Robustness Testing**
-   - Evaluating model performance on modified MNIST samples
-   - Testing with real-world handwritten digits
-   - Analyzing failure cases
+the number of examples of each class:
 
-2. **Architectural Experiments**
-   - Comparing different network architectures
-   - Investigating the role of various components
-   - Exploring novel approaches
+![mnist training data label distribution](data_inspection/output/mnist_label_distribution.png)
 
-3. **Practical Applications**
-   - Real-world deployment considerations
-   - Performance optimization
-   - Integration challenges
+the labels are evenly distributed. 
 
-## Getting Started
+### model fitting
+First, let's look at the training results for the fully connected model (StandardFCNet).
 
-1. Clone the repository
-2. Install dependencies: `pip install -r requirements.txt`
-3. Run the interactive drawing application: `python model_interpretation/interactive_draw.py`
+The model architecture consists of:
+- Input layer: 784 nodes (28x28 flattened images)
+- Hidden layer 1: 128 nodes with ReLU activation
+- Hidden layer 2: 64 nodes with ReLU activation 
+- Output layer: 10 nodes (one per digit)
 
-## Contributing
+[TODO: fill in training info]
 
-This is a personal study project, but feedback and suggestions are welcome. Feel free to open issues or submit pull requests.
+
 
 ## License
 
