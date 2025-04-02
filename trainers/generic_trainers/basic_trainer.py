@@ -7,6 +7,7 @@ import os
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 import shutil
+import matplotlib.pyplot as plt
 
 # Add the project root to the path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -86,6 +87,7 @@ class BasicTrainer:
         self.train_accuracies = []
         self.test_losses = []
         self.test_accuracies = []
+        self.gradient_norms = []
         
         # Best model tracking
         self.best_accuracy = 0.0
@@ -128,6 +130,7 @@ class BasicTrainer:
         running_loss = 0.0
         correct = 0
         total = 0
+        total_grad_norm = 0.0
         
         # Use tqdm for progress bar
         pbar = tqdm(train_loader, desc='Training')
@@ -144,6 +147,11 @@ class BasicTrainer:
             
             # Backward pass and optimize
             loss.backward()
+            
+            # Calculate gradient norm
+            grad_norm = torch.norm(torch.stack([torch.norm(p.grad.detach()) for p in self.model.parameters() if p.grad is not None]))
+            total_grad_norm += grad_norm.item()
+            
             self.optimizer.step()
             
             # Statistics
@@ -160,8 +168,11 @@ class BasicTrainer:
         
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100. * correct / total
+        epoch_grad_norm = total_grad_norm / len(train_loader)
+        
         self.train_losses.append(epoch_loss)
         self.train_accuracies.append(epoch_acc)
+        self.gradient_norms.append(epoch_grad_norm)
         
         return epoch_loss, epoch_acc
     
@@ -192,6 +203,43 @@ class BasicTrainer:
         
         return test_loss, test_acc
     
+    def _plot_metrics(self):
+        """Plot and save training metrics."""
+        plt.figure(figsize=(10, 15))
+        
+        # Plot 1: Training and Test Loss
+        plt.subplot(3, 1, 1)
+        plt.plot(self.train_losses, label='Train Loss')
+        plt.plot(self.test_losses, label='Test Loss')
+        plt.title('Loss over Epochs')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.legend()
+        plt.grid(True)
+        
+        # Plot 2: Training and Test Accuracy
+        plt.subplot(3, 1, 2)
+        plt.plot(self.train_accuracies, label='Train Accuracy')
+        plt.plot(self.test_accuracies, label='Test Accuracy')
+        plt.title('Accuracy over Epochs')
+        plt.xlabel('Epoch')
+        plt.ylabel('Accuracy (%)')
+        plt.legend()
+        plt.grid(True)
+        
+        # Plot 3: Gradient L2 Norm
+        plt.subplot(3, 1, 3)
+        plt.plot(self.gradient_norms)
+        plt.title('Gradient L2 Norm over Epochs')
+        plt.xlabel('Epoch')
+        plt.ylabel('Gradient Norm')
+        plt.grid(True)
+        
+        # Save the plot
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.output_dir, 'training_metrics.png'))
+        plt.close()
+
     def train(self):
         """Train the model for the specified number of epochs."""
         print(f"Training on {self.device}")
@@ -227,6 +275,9 @@ class BasicTrainer:
             print(f"Test Loss:  {test_loss:.4f} | Test Acc:  {test_acc:.2f}%")
             if is_best:
                 print(f"New best model! Best accuracy: {self.best_accuracy:.2f}%")
+        
+        # Plot and save metrics at the end of training
+        self._plot_metrics()
         
         # Close TensorBoard writer
         self.writer.close()
