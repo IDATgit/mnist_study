@@ -112,6 +112,9 @@ class DigitDrawer:
         self.predicted_label = None
         self.true_label = None
         
+        # Initialize model selection after UI is created
+        self.model_var.set(self.current_model['name'])
+        
     def setup_styles(self):
         """Configure ttk styles for widgets."""
         style = ttk.Style()
@@ -232,6 +235,10 @@ class DigitDrawer:
     def on_model_change(self, event):
         """Handle model selection change."""
         selected_name = self.model_var.get()
+        if not selected_name:  # If no model is selected, use the first available model
+            selected_name = self.available_models[0]['name']
+            self.model_var.set(selected_name)
+            
         for model in self.available_models:
             if model['name'] == selected_name:
                 self.current_model = model
@@ -240,8 +247,10 @@ class DigitDrawer:
                 # Reset data loaders when switching models
                 self.train_loader = iter(self.data_loader.get_train_loader())
                 self.test_loader = iter(self.data_loader.get_test_loader())
+                # Update prediction with current drawing
+                if hasattr(self, 'image'):
+                    self.predict()
                 break
-        self.clear_canvas()
         
     def setup_ui(self):
         """Setup the user interface."""
@@ -263,17 +272,16 @@ class DigitDrawer:
         
         # Model selection dropdown
         self.model_var = tk.StringVar()
-        self.model_var.set(self.available_models[0]['name'])
         model_names = [model['name'] for model in self.available_models]
-        model_dropdown = ttk.Combobox(
+        self.model_dropdown = ttk.Combobox(
             model_frame,
             textvariable=self.model_var,
             values=model_names,
             state='readonly',
             width=30
         )
-        model_dropdown.pack(side='left', fill='x', expand=True)
-        model_dropdown.bind('<<ComboboxSelected>>', self.on_model_change)
+        self.model_dropdown.pack(side='left', fill='x', expand=True)
+        self.model_dropdown.bind('<<ComboboxSelected>>', self.on_model_change)
         
         # Content frame for drawing and prediction
         content_frame = ttk.Frame(main_frame, style='Dark.TFrame')
@@ -542,7 +550,7 @@ class DigitDrawer:
         
     def load_classified_sample(self, is_train=True, is_correct=True):
         """Load a sample that is either correctly or incorrectly classified."""
-        max_attempts = 100
+        max_attempts = 10000
         attempts = 0
         status = "correctly" if is_correct else "incorrectly"
         loader = iter(self.train_loader if is_train else self.test_loader)
@@ -559,12 +567,16 @@ class DigitDrawer:
                 self.model.cpu()
                 output = self.model(data)
                 pred = output.argmax(dim=1, keepdim=True)
+                predicted_class = pred.item()
+                true_class = target.item()
                 
-                is_correct_pred = pred.eq(target.view_as(pred)).item()
+                # Check if prediction matches what we want (correct or incorrect)
+                is_correct_pred = (predicted_class == true_class)
                 if is_correct_pred == is_correct:
                     # Found a matching sample
                     self.current_image = data.squeeze().numpy()
-                    self.true_label = target.item()
+                    self.true_label = true_class
+                    self.predicted_label = predicted_class
                     self.update_canvas()
                     self.predict()
                     print(f"Loaded {status} classified {'training' if is_train else 'test'} sample. True: {self.true_label}, Predicted: {self.predicted_label}")
