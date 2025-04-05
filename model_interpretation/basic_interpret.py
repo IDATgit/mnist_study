@@ -17,6 +17,7 @@ from models.specific_models.StandardFullyConnected import StandardFullyConnected
 from models.specific_models.StandardConvNet import StandardConvNet
 from models.specific_models.BranchingMergingCNN import BranchingMergingCNN
 from models.specific_models.ResNet import ResNet
+from models.specific_models.ShiftInvariantCNN import ShiftInvariantCNN
 
 class ClassificationStats:
     """Class to compute and store classification statistics."""
@@ -193,6 +194,8 @@ def find_available_models():
                 model_type = 'branching'
             elif 'resnet' in model_dir_lower:
                 model_type = 'resnet'
+            elif 'shift_invariant' in model_dir_lower:
+                model_type = 'shift_invariant'
             else:
                 model_type = 'conv'
             print(f"Found model: {model_dir} -> type: {model_type}")
@@ -222,6 +225,8 @@ def load_model(model_path, model_type):
         model = BranchingMergingCNN()
     elif model_type == 'resnet':
         model = ResNet()
+    elif model_type == 'shift_invariant':
+        model = ShiftInvariantCNN()
     else:
         model = StandardConvNet()
         
@@ -234,7 +239,7 @@ def load_model(model_path, model_type):
             cleaned_state_dict[k] = v
             
     # Load state dict with strict=False to ignore unexpected keys
-    model.load_state_dict(cleaned_state_dict, strict=False)
+    model.load_state_dict(cleaned_state_dict)
     model.eval()
     return model
 

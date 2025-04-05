@@ -15,6 +15,7 @@ from models.specific_models.StandardFullyConnected import StandardFullyConnected
 from models.specific_models.StandardConvNet import StandardConvNet
 from models.specific_models.BranchingMergingCNN import BranchingMergingCNN
 from models.specific_models.ResNet import ResNet
+from models.specific_models.ShiftInvariantCNN import ShiftInvariantCNN
 from utils.data_loader import MNISTDataLoader
 
 def find_available_models():
@@ -36,6 +37,8 @@ def find_available_models():
                 model_type = 'branching'
             elif 'resnet' in model_dir_lower:
                 model_type = 'resnet'
+            elif 'shift_invariant' in model_dir_lower:
+                model_type = 'shift_invariant'
             else:
                 model_type = 'conv'
             print(f"Found model: {model_dir} -> type: {model_type}")
@@ -206,16 +209,18 @@ class DigitDrawer:
         checkpoint = torch.load(model_path)
         state_dict = checkpoint['model_state_dict']
         
-        # Determine model type from the current model info
-        model_type = self.current_model['type']
+        # Get model name from the current model info
+        model_name = self.current_model['name']
         
-        # Create appropriate model based on type
-        if model_type == 'fc':
+        # Create appropriate model based on name
+        if model_name == 'StandardFC':
             model = StandardFullyConnected()
-        elif model_type == 'branching':
+        elif model_name == 'BranchingMergingCNN':
             model = BranchingMergingCNN()
-        elif model_type == 'resnet':
+        elif model_name == 'ResNet18':
             model = ResNet()
+        elif model_name == 'ShiftInvariantCNN':
+            model = ShiftInvariantCNN()
         else:
             model = StandardConvNet()
             
@@ -227,8 +232,7 @@ class DigitDrawer:
             else:
                 cleaned_state_dict[k] = v
                 
-        # Load state dict with strict=False to ignore unexpected keys
-        model.load_state_dict(cleaned_state_dict, strict=False)
+        model.load_state_dict(cleaned_state_dict)
         model.eval()
         return model
         
