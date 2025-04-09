@@ -19,7 +19,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
+*.npy
 # PyTorch model checkpoints - ignore all checkpoints
 trainers/outputs/*/checkpoints/*.pt
 
