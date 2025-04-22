@@ -5,13 +5,13 @@ import os
 # Add the project root to the path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from models.specific_models.ResNet import ResNet
+from models.specific_models.SmallFullyConnected import SmallFullyConnected
 from trainers.generic_trainers.basic_trainer import BasicTrainer
 from utils.data_loader import MNISTDataLoader
 
-def train_resnet_model():
+def train_small_fully_connected_model():
     # Initialize the model
-    model = ResNet()
+    model = SmallFullyConnected()
     
     # Create a custom data loader
     data_loader = MNISTDataLoader(
@@ -23,7 +23,7 @@ def train_resnet_model():
         num_train_samples=60000
     )
     
-    # Initialize the trainer with specific parameters for ResNet
+    # Initialize the trainer with specific parameters
     trainer = BasicTrainer(
         model=model,
         model_name=model.get_name(),
@@ -39,4 +39,4 @@ def train_resnet_model():
     return trainer.get_history()
 
 if __name__ == "__main__":
-    train_resnet_model() 
+    train_small_fully_connected_model() 

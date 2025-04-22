@@ -1,0 +1,9 @@
+Analysis with Random Labels and 1280 samples
+max_eigenvalue: 12.930924
+min_eigenvalue: -0.000040
+mean_eigenvalue: 0.033708
+median_eigenvalue: 0.000048
+std_eigenvalue: 0.369491
+condition_number: -320122.750000
+effective_rank: 20.463446
+num_parameters: 7850.000000

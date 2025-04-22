@@ -26,7 +26,12 @@ class BasicTrainer:
         batch_size=64,
         num_epochs=10,
         device=None,
-        preload_gpu=False
+        preload_gpu=False,
+        random_labels=False,
+        random_seed=42,
+        num_train_samples=60000,
+        random_images=False,
+        data_loader=None
     ):
         """
         Initialize the trainer.
@@ -39,6 +44,11 @@ class BasicTrainer:
             num_epochs (int): Number of epochs to train
             device (str): Device to train on ('cuda' or 'cpu')
             preload_gpu (bool): If True, preload entire dataset to GPU
+            random_labels (bool): If True, use random labels for training
+            random_seed (int): Random seed for reproducibility
+            num_train_samples (int): Number of training samples to use
+            random_images (bool): If True, use random noise images instead of real MNIST
+            data_loader: Optional custom data loader. If None, a MNISTDataLoader will be created.
         """
         # Set device
         if device is None:
@@ -71,16 +81,27 @@ class BasicTrainer:
         self.learning_rate = learning_rate
         self.batch_size = batch_size
         self.num_epochs = num_epochs
+        self.random_labels = random_labels
+        self.random_seed = random_seed
+        self.num_train_samples = num_train_samples
+        self.random_images = random_images
         
         # Initialize criterion and optimizer
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
         
         # Initialize data loader
-        self.data_loader = MNISTDataLoader(
-            batch_size=batch_size,
-            preload_gpu=preload_gpu and str(self.device) == 'cuda'
-        )
+        if data_loader is not None:
+            self.data_loader = data_loader
+        else:
+            self.data_loader = MNISTDataLoader(
+                batch_size=batch_size,
+                preload_gpu=preload_gpu and str(self.device) == 'cuda',
+                random_labels=random_labels,
+                random_seed=random_seed,
+                num_train_samples=num_train_samples,
+                random_images=random_images
+            )
         
         # Training history
         self.train_losses = []
@@ -116,6 +137,10 @@ class BasicTrainer:
         # Save regular checkpoint
         checkpoint_path = os.path.join(self.checkpoint_dir, f'checkpoint_epoch_{epoch}.pt')
         torch.save(checkpoint, checkpoint_path)
+        
+        # Always save the latest model
+        latest_path = os.path.join(self.checkpoint_dir, 'model_latest.pt')
+        shutil.copyfile(checkpoint_path, latest_path)
         
         # Save best model if this is the best accuracy
         if is_best:
@@ -245,6 +270,9 @@ class BasicTrainer:
         print(f"Training on {self.device}")
         print(f"Model parameters: {sum(p.numel() for p in self.model.parameters() if p.requires_grad):,}")
         print(f"Outputs will be saved to: {self.output_dir}")
+        print(f"Training samples: {self.num_train_samples}")
+        if self.random_labels:
+            print(f"Using random labels with seed: {self.random_seed}")
         
         for epoch in range(self.num_epochs):
             print(f"\nEpoch {epoch+1}/{self.num_epochs}")

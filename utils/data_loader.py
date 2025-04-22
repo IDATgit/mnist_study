@@ -6,7 +6,8 @@ class MNISTDataLoader:
     """
     A class to handle MNIST dataset loading with consistent preprocessing.
     """
-    def __init__(self, batch_size=64, num_workers=2, root_dir='./data', preload_gpu=False):
+    def __init__(self, batch_size=64, num_workers=2, root_dir='./data', preload_gpu=False, 
+                 random_labels=False, random_seed=42, num_train_samples=60000, random_images=False):
         """
         Initialize the data loader with given parameters.
         
@@ -15,12 +16,19 @@ class MNISTDataLoader:
             num_workers (int): Number of subprocesses for data loading
             root_dir (str): Root directory for storing the dataset
             preload_gpu (bool): If True, load entire dataset into GPU memory
+            random_labels (bool): If True, assign random labels to training data
+            random_seed (int): Seed for random operations
+            num_train_samples (int): Number of training samples to use
+            random_images (bool): If True, replace images with random noise
         """
         self.batch_size = batch_size
         self.num_workers = num_workers if not preload_gpu else 0  # No workers needed for GPU preloaded data
         self.root_dir = root_dir
         self.preload_gpu = preload_gpu
-        
+        self.random_labels = random_labels
+        self.random_images = random_images
+        self.random_seed = random_seed
+        self.num_train_samples = num_train_samples
         # Standard MNIST normalization values
         self.mean = 0.1307
         self.std = 0.3081
@@ -45,7 +53,8 @@ class MNISTDataLoader:
             transform=self.transform,
             download=True
         )
-        
+        self._preprocess_training_set()
+
         # Preload to GPU if requested
         if preload_gpu:
             print("Preloading MNIST dataset to GPU...")
@@ -53,6 +62,41 @@ class MNISTDataLoader:
             self.test_dataset = self._preload_to_gpu(self.test_dataset)
             print("Dataset loaded to GPU successfully!")
     
+    
+    def _preprocess_training_set(self):
+        """Preprocess training set by limiting samples and optionally randomizing labels/images"""
+        # Limit number of training samples
+        indices = list(range(len(self.train_dataset.data)))[:self.num_train_samples]
+        self.train_dataset.data = self.train_dataset.data[indices]
+        self.train_dataset.targets = self.train_dataset.targets[indices]
+
+        # Randomize labels if requested
+        if self.random_labels:
+            torch.manual_seed(self.random_seed)
+            random_targets = torch.randint(0, 10, (self.num_train_samples,))
+            self.train_dataset.targets = random_targets
+            
+        # Replace images with random noise if requested
+        if self.random_images:
+            self._replace_with_random_images(self.train_dataset)
+            
+    def _replace_with_random_images(self, dataset):
+        """
+        Replace real images with random uniform noise.
+        
+        Args:
+            dataset: PyTorch dataset
+        """
+        # Set the random seed for reproducibility
+        torch.manual_seed(self.random_seed)
+        
+        # Create random noise images with the same shape as MNIST (28x28)
+        # We use uniform noise in range [0, 255] to match MNIST's original range
+        random_data = torch.randint(0, 256, dataset.data.shape, dtype=torch.uint8)
+        
+        print(f"Replacing {len(dataset.data)} real images with random uniform noise...")
+        dataset.data = random_data
+
     def _preload_to_gpu(self, dataset):
         """
         Preload an entire dataset to GPU memory.

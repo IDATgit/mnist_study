@@ -7,20 +7,30 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from models.specific_models.StandardFullyConnected import StandardFullyConnected
 from trainers.generic_trainers.basic_trainer import BasicTrainer
+from utils.data_loader import MNISTDataLoader
 
 def train_fully_connected_model():
     # Initialize the model
     model = StandardFullyConnected()
+    
+    # Create a custom data loader
+    data_loader = MNISTDataLoader(
+        batch_size=64,
+        preload_gpu=torch.cuda.is_available(),
+        random_labels=False,
+        random_images=False,
+        random_seed=42,
+        num_train_samples=60000
+    )
     
     # Initialize the trainer with specific parameters for FullyConnected
     trainer = BasicTrainer(
         model=model,
         model_name=model.get_name(),
         learning_rate=0.001,
-        batch_size=64,
         num_epochs=50,
         device='cuda' if torch.cuda.is_available() else 'cpu',
-        preload_gpu=True
+        data_loader=data_loader
     )
     
     # Train the model
