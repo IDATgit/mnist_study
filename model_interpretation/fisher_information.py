@@ -163,13 +163,9 @@ def analyze_fisher_information(fisher_info, model, model_name, output_dir):
     
     return stats
 
-def main(model):
+def main(model, model_name, data_loader):
     start_time = time.time()
-    
-    # Initialize data loader
-    data_loader = MNISTDataLoader(batch_size=64, preload_gpu=True)
     train_loader = data_loader.get_train_loader()
-    
     model_name = model._get_name()
     # Print model parameters and FIM size
     num_params = sum(p.numel() for p in model.parameters())
@@ -212,6 +208,27 @@ def main(model):
     print(f"Total execution time: {total_time:.2f} seconds")
 
 if __name__ == "__main__":
-        # Model to analyze
-    model = StandardFullyConnected()
-    main(model) 
+
+    import os
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from trainers.specific_trainers import train_linear_random_images
+    
+    model = train_linear_random_images.model
+    model_name = train_linear_random_images.model_name
+    data_loader = train_linear_random_images.data_loader
+    # Load latest checkpoint
+    checkpoint_dir = Path('trainers') / 'outputs' / model_name / 'checkpoints'
+    latest_checkpoint = checkpoint_dir / 'model_latest.pt'
+    
+    if not latest_checkpoint.exists():
+        # Fall back to looking for any checkpoint files
+        checkpoints = list(checkpoint_dir.glob('*.pt'))
+        if not checkpoints:
+            raise FileNotFoundError(f"No checkpoints found in {checkpoint_dir}")
+        latest_checkpoint = max(checkpoints, key=lambda x: x.stat().st_mtime)
+    
+    checkpoint = torch.load(latest_checkpoint)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    print(f"Loaded checkpoint from {latest_checkpoint}")
+    main(model, model_name, data_loader) 

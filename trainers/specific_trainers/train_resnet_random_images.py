@@ -20,7 +20,7 @@ def train_resnet_model_random_images():
         random_labels=False,
         random_images=True,
         random_seed=42,
-        num_train_samples=7000
+        num_train_samples=60000
     )
     
     # Initialize the trainer with specific parameters
