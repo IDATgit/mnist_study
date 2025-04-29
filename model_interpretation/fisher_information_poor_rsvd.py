@@ -17,7 +17,7 @@ from models.specific_models.StandardFullyConnected import StandardFullyConnected
 from models.specific_models.LinearModel import LinearModel
 
 
-def calculate_fisher_information(model, data_loader):
+def calculate_fisher_information_random_projection(model, data_loader, k):
     """
     Calculate the empirical Fisher Information Matrix using the outer product form.
     FIM = E[∇log p(y|x,θ)∇log p(y|x,θ)^T]
@@ -26,8 +26,16 @@ def calculate_fisher_information(model, data_loader):
     num_params = sum(p.numel() for p in model.parameters())
     device = next(model.parameters()).device
     
+    projection_matrix = np.random.randn(num_params, k)
+    # Normalize each column of the projection matrix to have unit norm
+    projection_matrix = torch.tensor(projection_matrix, dtype=torch.float32)
+    norms = torch.norm(projection_matrix, dim=0, keepdim=True)
+    projection_matrix = projection_matrix / norms
+    
     # Initialize FIM as zero matrix
-    fisher_info = torch.zeros((num_params, num_params), device=device)
+    projection_matrix = projection_matrix.to(device)
+    fisher_info_projection = torch.zeros(projection_matrix.shape, device=device)
+
     
     # Calculate FIM using gradients
     nof_samples = 0
@@ -51,9 +59,10 @@ def calculate_fisher_information(model, data_loader):
                 
                 # Get flattened gradient and detach
                 grad = torch.cat([p.grad.detach().view(-1) for p in model.parameters()])
-                
+                grad = grad.view(num_params, 1)
                 # Add outer product to Fisher Information Matrix
-                fisher_info.add_(torch.outer(grad, grad) * prob)
+                fisher_info_projection.add_(prob * grad * (grad.T @ projection_matrix))
+                # fisher_info.add_(torch.outer(grad, grad) * prob)
                 
                 # Zero gradients
                 model.zero_grad()
@@ -64,11 +73,11 @@ def calculate_fisher_information(model, data_loader):
     
     # Average over samples
     print(f"Analyzed {nof_samples} samples. (full training set)")
-    fisher_info /= (nof_samples * data.size(0))
+    fisher_info_projection /= (nof_samples * data.size(0))
     
-    return fisher_info.cpu().numpy()
+    return fisher_info_projection.cpu().numpy()
 
-def analyze_fisher_information(fisher_info, model, model_name, output_dir):
+def analyze_fisher_information_projection(fisher_info_projection, model, model_name, output_dir):
     """
     Analyze the Fisher Information Matrix through spectral decomposition.
     
@@ -86,16 +95,17 @@ def analyze_fisher_information(fisher_info, model, model_name, output_dir):
     num_params = sum(p.numel() for p in model.parameters())
     
     # Save the raw Fisher Information Matrix
-    print(f"Saving Fisher Information Matrix to {output_dir / f'{model_name}_fisher_matrix.npy'}...")
-    np.save(output_dir / f'{model_name}_fisher_matrix.npy', fisher_info)
+    print(f"Saving Fisher Information Matrix to {output_dir / f'{model_name}_fisher_matrix_projection.npy'}...")
+    np.save(output_dir / f'{model_name}_fisher_matrix_projection.npy', fisher_info_projection)
     
     # Convert to CuPy array for GPU computation
     print("Converting to CuPy array for GPU eigenvalue decomposition...")
-    fisher_info_cp = cp.array(fisher_info)
+    fisher_info_projection_cp = cp.array(fisher_info_projection)
+    fisher_info_projection_cov_cp = fisher_info_projection_cp.T @ fisher_info_projection_cp
     
     # Calculate eigenvalues using CuPy (on GPU)
     print("Computing eigenvalues on GPU...")
-    eigenvalues, eigenvectors = cp.linalg.eigh(fisher_info_cp)
+    eigenvalues, eigenvectors = cp.linalg.eigh(fisher_info_projection_cov_cp)
     
     # Convert back to NumPy for further processing
     eigenvalues = cp.asnumpy(eigenvalues)
@@ -166,15 +176,22 @@ def analyze_fisher_information(fisher_info, model, model_name, output_dir):
 def main(model, model_name, data_loader):
     start_time = time.time()
     train_loader = data_loader.get_train_loader()
-    model_name = model._get_name()
+    
+    # Store the original model name for directory structure
+    original_model_name = model_name
+    
+    # Get model class name for easier reference in output files
+    model_class_name = model._get_name()
+    
     # Print model parameters and FIM size
     num_params = sum(p.numel() for p in model.parameters())
     print(f"\nModel parameters: {num_params:,}")
     print(f"Fisher Information Matrix size: {num_params:,} x {num_params:,} = {num_params**2:,}")
-    # Output directory
-    output_dir = Path(f'model_interpretation/outputs/fisher_analysis/{model_name}/')
     
-    print(f"\nAnalyzing {model_name}...")
+    # Output directory - use the original model name from training
+    output_dir = Path(f'model_interpretation/outputs/fisher_analysis/{original_model_name}/')
+    
+    print(f"\nAnalyzing {original_model_name} (model type: {model_class_name})...")
     
     # Move model to GPU if available
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -182,18 +199,18 @@ def main(model, model_name, data_loader):
     
     # Calculate Fisher Information Matrix
     fim_start_time = time.time()
-    fisher_info = calculate_fisher_information(model, train_loader)
+    fisher_info = calculate_fisher_information_random_projection(model, train_loader, 1000)
     fim_end_time = time.time()
     print("Fisher Information Matrix calculated.")
     print(f"FIM calculation took {fim_end_time - fim_start_time:.2f} seconds")
     
     # Analyze and save results
     analysis_start_time = time.time()
-    stats = analyze_fisher_information(fisher_info, model, model_name, output_dir)
+    stats = analyze_fisher_information_projection(fisher_info, model, original_model_name, output_dir)
     analysis_end_time = time.time()
     
     # Print summary statistics
-    print(f"\nFisher Information Analysis for {model_name}:")
+    print(f"\nFisher Information Analysis for {original_model_name}:")
     print(f"Max eigenvalue: {stats['max_eigenvalue']:.6f}")
     print(f"Min eigenvalue: {stats['min_eigenvalue']:.6f}")
     print(f"Condition number: {stats['condition_number']:.6f}")
@@ -212,11 +229,10 @@ if __name__ == "__main__":
     import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     
-    # Use the improved interactive model loader
+    # Use the interactive model loader
     from utils.model_loader import load_model_interactive
     
-    # Let the user choose which model and checkpoint to analyze
-    print("\nSelect a model and checkpoint for Fisher Information Analysis")
+    # Let the user choose which model to analyze
     model, model_name, data_loader = load_model_interactive()
     
     # Run the main function with the selected model
