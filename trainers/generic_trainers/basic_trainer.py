@@ -217,6 +217,9 @@ class BasicTrainer:
                 phase = "Training" if is_training else "Testing"
                 vis_figure.suptitle(f"{phase} Visualization - Epoch: {epoch}", fontsize=16)
                 
+                # Set fixed subplot parameters to ensure consistent spacing
+                plt.subplots_adjust(wspace=0.3, hspace=0.3)
+                
                 for i in range(min(grid_size * grid_size, batch_size)):
                     # Get image
                     img = inputs[i].squeeze().numpy()
@@ -226,14 +229,15 @@ class BasicTrainer:
                     target = targets[i].item()
                     correct = pred == target
                     
-                    # Plot image
+                    # Plot image with fixed position
                     ax = vis_figure.add_subplot(grid_size, grid_size, i + 1)
                     ax.imshow(img, cmap='gray')
                     ax.set_title(f'Pred: {pred}, True: {target}', 
                                color='green' if correct else 'red')
                     ax.axis('off')
                 
-                vis_figure.tight_layout(rect=[0, 0, 1, 0.95])  # Make room for suptitle
+                # Use tight_layout with fixed rect parameter to maintain consistent spacing
+                vis_figure.tight_layout(rect=[0, 0, 1, 0.95], w_pad=0.3, h_pad=0.3)
                 vis_figure.canvas.draw()
                 plt.pause(0.001)
                 

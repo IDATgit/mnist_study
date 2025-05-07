@@ -35,7 +35,13 @@ def calculate_fisher_information(model, data_loader):
         data = data.to(device)
         outputs = model(data)
         probs = torch.softmax(outputs, dim=1)
+        min_prob = 1e-9
+        max_prob = 1 - min_prob
+        probs = torch.clamp(probs, min=min_prob, max=max_prob)
         log_probs = torch.log(probs)
+        # Clip log probabilities to avoid numerical instability
+        # Set minimum value to log(1e-9) and maximum value to log(1-1e-9)
+        
         nof_samples += data.size(0)
         # Compute gradients for each sample in the batch
         for i in range(data.size(0)):
@@ -53,8 +59,10 @@ def calculate_fisher_information(model, data_loader):
                 grad = torch.cat([p.grad.detach().view(-1) for p in model.parameters()])
                 
                 # Add outer product to Fisher Information Matrix
-                fisher_info.add_(torch.outer(grad, grad) * prob)
-                
+                if prob > 0:
+                    fisher_info.add_(torch.outer(grad, grad) * prob)
+                if fisher_info.isnan().any():
+                    a = 1
                 # Zero gradients
                 model.zero_grad()
                 
@@ -166,7 +174,6 @@ def analyze_fisher_information(fisher_info, model, model_name, output_dir):
 def main(model, model_name, data_loader):
     start_time = time.time()
     train_loader = data_loader.get_train_loader()
-    model_name = model._get_name()
     # Print model parameters and FIM size
     num_params = sum(p.numel() for p in model.parameters())
     print(f"\nModel parameters: {num_params:,}")

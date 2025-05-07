@@ -12,11 +12,11 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, '..', '..'))
 sys.path.insert(0, project_root)
 
-from models.specific_models.LinearModel import LinearModel
+from models.specific_models.ResNet import ResNet
 from trainers.generic_trainers.basic_trainer import BasicTrainer
 from utils.data_loader import MNISTDataLoader
 
-model = LinearModel()
+model = ResNet()
 print("Number of parameters: ", model.get_num_parameters())
 
 # Create a custom data loader
@@ -29,13 +29,13 @@ data_loader = MNISTDataLoader(
     num_train_samples=60000
 )
 
-def train_linear():
+def train_resnet18():
     # Initialize the trainer with specific parameters
     trainer = BasicTrainer(
         model=model,
         model_name=model_name,
-        learning_rate=1e-3,
-        num_epochs=1000,
+        learning_rate=0.001,
+        num_epochs=50,
         device='cuda' if torch.cuda.is_available() else 'cpu',
         data_loader=data_loader,
         visualization=True
@@ -46,4 +46,4 @@ def train_linear():
     return trainer.get_history()
 
 if __name__ == "__main__":
-    train_linear() 
+    train_resnet18() 

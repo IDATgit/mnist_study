@@ -24,17 +24,17 @@ data_loader = MNISTDataLoader(
     batch_size=64,
     preload_gpu=torch.cuda.is_available(),
     random_labels=False,
-    random_images=False,
+    random_images=True,
     random_seed=42,
-    num_train_samples=60000
+    num_train_samples=10000
 )
 
-def train_linear():
+def train_linear_random_images():
     # Initialize the trainer with specific parameters
     trainer = BasicTrainer(
         model=model,
         model_name=model_name,
-        learning_rate=1e-3,
+        learning_rate=1e-4,
         num_epochs=1000,
         device='cuda' if torch.cuda.is_available() else 'cpu',
         data_loader=data_loader,
@@ -46,4 +46,4 @@ def train_linear():
     return trainer.get_history()
 
 if __name__ == "__main__":
-    train_linear() 
+    train_linear_random_images() 

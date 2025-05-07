@@ -2,6 +2,11 @@ import torch
 import sys
 import os
 
+# Get the full path to the current file
+current_file_path = __file__
+current_filename = os.path.basename(__file__)
+model_name = current_filename[:-3]
+
 # Fix the import path correctly
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.abspath(os.path.join(current_dir, '..', '..'))
@@ -11,35 +16,34 @@ from models.specific_models.SmallFullyConnected import SmallFullyConnected
 from trainers.generic_trainers.basic_trainer import BasicTrainer
 from utils.data_loader import MNISTDataLoader
 
-model_name = 'SmallFullyConnected_RandomLabels'
-
 model = SmallFullyConnected()
+print("Number of parameters: ", model.get_num_parameters())
 
 # Create a custom data loader
 data_loader = MNISTDataLoader(
     batch_size=64,
     preload_gpu=torch.cuda.is_available(),
-    random_labels=True,
+    random_labels=False,
     random_images=False,
     random_seed=42,
-    num_train_samples=7000
+    num_train_samples=10000
 )
 
-# Initialize the trainer with specific parameters
-trainer = BasicTrainer(
-    model=model,
-    model_name=model_name,
-    learning_rate=0.001,
-    num_epochs=1000,
-    device='cuda' if torch.cuda.is_available() else 'cpu',
-    data_loader=data_loader
-)
-
-def train_small_fully_connected_model_random_labels():
+def train_small_fully_connected():
+    # Initialize the trainer with specific parameters
+    trainer = BasicTrainer(
+        model=model,
+        model_name=model_name,
+        learning_rate=1e-4,
+        num_epochs=1000,
+        device='cuda' if torch.cuda.is_available() else 'cpu',
+        data_loader=data_loader,
+        visualization=True
+    )
     # Train the model
     trainer.train()
     
     return trainer.get_history()
 
 if __name__ == "__main__":
-    train_small_fully_connected_model_random_labels() 
+    train_small_fully_connected() 

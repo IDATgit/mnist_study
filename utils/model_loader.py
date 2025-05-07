@@ -5,6 +5,10 @@ import importlib
 from pathlib import Path
 from typing import Tuple, Optional, Union
 
+# Add the project root to the path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
 def load_model_from_trainer(
     trainer_module_path: str,
     checkpoint_name: str = 'model_latest.pt',
@@ -30,9 +34,6 @@ def load_model_from_trainer(
         ImportError: If the trainer module cannot be imported
         FileNotFoundError: If no checkpoints are found
     """
-    # Add the project root to the path
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    
     # Dynamically import the trainer module
     try:
         trainer_module = importlib.import_module(trainer_module_path)
@@ -108,6 +109,10 @@ def load_model_interactive(device: Optional[str] = None) -> Tuple[torch.nn.Modul
     Returns:
         Tuple containing model, model_name, and data_loader
     """
+    # Make sure importlib is imported
+    import importlib
+    import torch.nn as nn
+    
     # Get the trainer modules directory
     outputs_dir = Path('trainers') / 'outputs'
     
@@ -232,95 +237,25 @@ def load_model_interactive(device: Optional[str] = None) -> Tuple[torch.nn.Modul
     
     print(f"Selected checkpoint: {checkpoint_name}")
     
-    # Create a mapping between model names and trainer modules (without importing them)
-    # This is done statically based on our trainer file naming conventions
-    model_to_trainer_mapping = {
-        'LinearModel': 'trainers.specific_trainers.train_linear',
-        'LinearModel_RandomLabels': 'trainers.specific_trainers.train_linear_random_labels',
-        'LinearModel_RandomImages': 'trainers.specific_trainers.train_linear_random_images',
-        'StandardFullyConnected': 'trainers.specific_trainers.fully_connected_trainer',
-        'StandardFullyConnected_RandomLabels': 'trainers.specific_trainers.train_fully_connected_random_labels',
-        'SmallFullyConnected': 'trainers.specific_trainers.train_small_fully_connected',
-        'SmallFullyConnected_RandomLabels': 'trainers.specific_trainers.train_small_fully_connected_random_labels',
-        'ResNet18': 'trainers.specific_trainers.resnet_trainer',
-        'ResNet18_RandomLabels': 'trainers.specific_trainers.train_resnet_random_labels',
-        'ResNet18_RandomImages': 'trainers.specific_trainers.train_resnet_random_images',
-        'ShiftInvariantCNN': 'trainers.specific_trainers.train_shift_invariant',
-        'ConvNet': 'trainers.specific_trainers.conv_trainer',
-        'BranchingMergingNet': 'trainers.specific_trainers.branching_merging_trainer'
-    }
+    # Automatically determine the trainer module path based on model name
+    model_name = selected_model    
+    # Try to find the appropriate trainer file
+    trainer_path = None
     
-    # Check if we have a mapping for this model
-    if selected_model in model_to_trainer_mapping:
-        trainer_module = model_to_trainer_mapping[selected_model]
-        print(f"Found matching trainer module: {trainer_module}")
-        return load_model_from_trainer(trainer_module, checkpoint_name, device)
-    else:
-        print(f"No specific trainer module found for {selected_model}.")
-        print("Loading model directly from saved checkpoints...")
-        
-        # Load the model directly from checkpoints
-        checkpoint_path = checkpoint_dir / checkpoint_name
-        
-        print(f"Loading checkpoint from: {checkpoint_path}")
-        checkpoint = torch.load(checkpoint_path, map_location='cpu' if device is None else device)
-        
-        # Check if model class info is saved in the checkpoint
-        if 'model_class' in checkpoint:
-            model_class = checkpoint['model_class']
-            model = model_class()
-        else:
-            # Without model class info, we need user to specify the model type
-            print("\nModel class information not found in checkpoint.")
-            print("Please select model type:")
-            print("[0] LinearModel")
-            print("[1] StandardFullyConnected")
-            print("[2] ShiftInvariantCNN")
-            print("[3] ResNet")
-            
-            model_types = [
-                ("models.specific_models.LinearModel", "LinearModel"),
-                ("models.specific_models.StandardFullyConnected", "StandardFullyConnected"),
-                ("models.specific_models.ShiftInvariantCNN", "ShiftInvariantCNN"),
-                ("models.specific_models.ResNet", "ResNet")
-            ]
-            
-            while True:
-                try:
-                    selection = input("\nEnter the number of the model type: ")
-                    index = int(selection)
-                    if 0 <= index < len(model_types):
-                        model_module_path, model_class_name = model_types[index]
-                        
-                        # Import the model class and instantiate it
-                        model_module = importlib.import_module(model_module_path)
-                        model_class = getattr(model_module, model_class_name)
-                        model = model_class()
-                        break
-                    else:
-                        print(f"Invalid selection. Please enter a number between 0 and {len(model_types)-1}.")
-                except (ValueError, ImportError, AttributeError) as e:
-                    print(f"Error: {e}. Please try again.")
-        
-        # Load model state
-        model.load_state_dict(checkpoint['model_state_dict'])
-        
-        # Determine device if not specified
-        if device is None:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        
-        # Move model to correct device
-        model = model.to(device)
-        
-        # Create a basic data loader
-        from utils.data_loader import MNISTDataLoader
-        data_loader = MNISTDataLoader(
-            batch_size=64,
-            preload_gpu=(device == 'cuda')
-        )
-        
-        print(f"Model loaded successfully on {device}")
-        return model, selected_model, data_loader
+    # First check if there's an exact match for the model name (including any suffixes)
+    exact_match_path = f'trainers.specific_trainers.{selected_model.lower()}'
+    trainer_module = importlib.import_module(exact_match_path)
+    trainer_path = exact_match_path
+    print(f"Exact match path: {exact_match_path}")
+    # Load model blueprint from module
+    model = trainer_module.model
+    data_loader = trainer_module.data_loader
+    checkpoint_path = checkpoint_dir / checkpoint_name
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    model.load_state_dict(checkpoint['model_state_dict'])
+       
+    print(f"Model loaded successfully on {device}")
+    return model, selected_model, data_loader
 
 # Example usage in main section
 if __name__ == "__main__":
