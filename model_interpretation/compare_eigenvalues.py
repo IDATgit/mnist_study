@@ -79,6 +79,9 @@ def compare_eigenvalue_distributions(models, save_dir=None):
     for model_name in models:
         try:
             eigenvalues, num_params = load_eigenvalues(model_name)
+            eigenvalues = np.abs(eigenvalues)
+            eigenvalues.sort()
+            eigenvalues = eigenvalues[::-1]  # Descending order
             all_eigenvalues.append(eigenvalues)
             all_param_counts.append(num_params)
             print(f"Loaded {len(eigenvalues)} eigenvalues for {model_name}")
@@ -89,32 +92,11 @@ def compare_eigenvalue_distributions(models, save_dir=None):
         print("No eigenvalues loaded. Exiting.")
         return
     
-    # Create plots comparing eigenvalues
-    
-    # 1. Histogram comparison
+    # Create eigenvalue spectrum plot
     plt.figure(figsize=(12, 8))
     for i, model_name in enumerate(models):
         if i < len(all_eigenvalues):
-            plt.hist(all_eigenvalues[i], bins=500, alpha=0.5, label=f"{model_name}")
-    
-    plt.title('Eigenvalue Distribution Comparison')
-    plt.xlabel('Eigenvalue')
-    plt.ylabel('Count')
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.legend()
-    plt.grid(True)
-    
-    if save_dir:
-        plt.savefig(save_dir / 'eigenvalue_histogram_comparison.png')
-        print(f"Saved histogram to {save_dir / 'eigenvalue_histogram_comparison.png'}")
-    
-    # 2. Eigenvalue vs index plot
-    plt.figure(figsize=(12, 8))
-    for i, model_name in enumerate(models):
-        if i < len(all_eigenvalues):
-            sorted_evals = np.sort(all_eigenvalues[i])[::-1]  # Descending order
-            plt.plot(range(1, len(sorted_evals) + 1), sorted_evals, label=f"{model_name}")
+            plt.plot(range(1, len(all_eigenvalues[i]) + 1), all_eigenvalues[i], label=f"{model_name}")
     
     plt.title('Eigenvalue Spectrum')
     plt.xlabel('Eigenvalue Index')
@@ -127,9 +109,7 @@ def compare_eigenvalue_distributions(models, save_dir=None):
         plt.savefig(save_dir / 'eigenvalue_spectrum.png')
         print(f"Saved eigenvalue spectrum to {save_dir / 'eigenvalue_spectrum.png'}")
     
-    # Show all plots at once
-    if not save_dir:
-        plt.show()
+    plt.show()
 
 def print_eigenvalue_stats(models):
     """
@@ -159,10 +139,10 @@ def print_eigenvalue_stats(models):
 
 if __name__ == "__main__":
     # Models to compare
-    models = ['small_convnet', 'small_convnet_random_images']
+    models = ['small_convnet', 'small_convnet_random_images', 'small_convnet_random_labels']
     
-    # Compare eigenvalues - only plot, don't save
-    compare_eigenvalue_distributions(models)
+    # Compare eigenvalues - both save and show
+    compare_eigenvalue_distributions(models, save_dir='model_interpretation/outputs/eigenvalue_comparison')
     
     # Print statistics
     print_eigenvalue_stats(models) 
