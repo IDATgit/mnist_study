@@ -26,7 +26,7 @@ class SmallConvNet(ParametricConvNet):
             padding=[1, 1],              # Preserve spatial dimensions
             pool_sizes=[2, 2],           # Reduce spatial dimensions by 4x
             fc_sizes=[16],               # Small hidden layer
-            dropout_rate=0               # No dropout to reduce parameter count
+            dropout_rate=0.0             # No dropout to reduce parameter count (must be float)
         )
         
     def get_name(self):

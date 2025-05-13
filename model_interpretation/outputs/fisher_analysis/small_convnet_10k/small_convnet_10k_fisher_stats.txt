@@ -1,0 +1,8 @@
+max_eigenvalue: 0.891765
+min_eigenvalue: -0.000000
+mean_eigenvalue: 0.001216
+median_eigenvalue: 0.000000
+std_eigenvalue: 0.017004
+condition_number: -2778306.250000
+effective_rank: 9.754602
+num_parameters: 7154.000000
