@@ -25,3 +25,9 @@ class LinearModel(nn.Module):
         x = x.view(x.size(0), -1)
         # Apply linear layer
         return self.linear(x) 
+    
+    def get_name(self):
+        return f"LinearModel"
+    
+    def get_num_parameters(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad) 
