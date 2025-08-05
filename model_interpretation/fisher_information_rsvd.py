@@ -12,11 +12,6 @@ from tqdm import tqdm
 # Add the project root to the path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.data_loader import MNISTDataLoader
-from models.specific_models.ShiftInvariantCNN import ShiftInvariantCNN
-from models.specific_models.StandardFullyConnected import StandardFullyConnected
-from models.specific_models.LinearModel import LinearModel
-
 
 def apply_fisher_to_matrix(model, data_loader, X, device):
     """
@@ -36,12 +31,12 @@ def apply_fisher_to_matrix(model, data_loader, X, device):
     
     # Initialize result matrix Y = A*X
     Y = torch.zeros((num_params, k), device=device)
-    
+    error = 0
     # Keep track of samples processed
     total_samples = 0
     
     # Process batches
-    for batch_idx, (data, _) in enumerate(tqdm(data_loader, desc="Applying Fisher")):
+    for batch_idx, (data, _) in enumerate(tqdm(data_loader, desc="Computing fisher information matrix projection")):
         batch_size = data.size(0)
         total_samples += batch_size
         data = data.to(device)
@@ -67,15 +62,17 @@ def apply_fisher_to_matrix(model, data_loader, X, device):
                 
                 # Extract gradient
                 grad = torch.cat([p.grad.detach().flatten() for p in model.parameters()])
-                
+                grad = grad.view(-1, 1) # coloumn vector
                 # Weight by probability: p * grad * (grad^T * X)
                 prob = sample_probs[class_idx].item()
-                Y += prob * torch.outer(grad, torch.matmul(grad, X))
+                info = prob * grad @ grad.T @ X
+                error += prob*torch.linalg.norm(grad, ord=2) - torch.linalg.norm(info, ord=2)
+                Y += info
     
     # Average over total samples
     Y /= total_samples
-    
-    return Y
+    error = error / total_samples
+    return Y, error
 
 
 def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1):
@@ -103,26 +100,30 @@ def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1):
     X = torch.randn(num_params, k, device=device)
     
     # Step 2: For i = 0, ..., q, calculate the QR factorization AX = QR and update X = A*Q
-    for i in range(power_iterations + 1):
-        print(f"Step 2.{i}: Power iteration {i}/{power_iterations}")
+    for i in range(power_iterations):
+        print(f"Step 2.{i}: range finder: power iteration {i+1}/{power_iterations}")
         
+        # NOTE: this is not the proper way to do it. need  normalization to avoid rounding errors, see algorithm 4.4 at Halko.
+        # this is OK for single power itterations (no power iterations)
         # Apply Fisher Information Matrix to X
-        AX = apply_fisher_to_matrix(model, data_loader, X, device)
+        AX, e = apply_fisher_to_matrix(model, data_loader, X, device)
+
         
-        # QR factorization
-        Q, R = torch.linalg.qr(AX)
-        
-        # Update X = A*Q
-        if i < power_iterations:  # Skip the last A*Q calculation if this is the last iteration
-            X = apply_fisher_to_matrix(model, data_loader, Q, device)
+    # Step 3: QR factorization
+    print("Step 3: QR decomposition (Q = estimated range basis)")
+    Q, R = torch.linalg.qr(AX)
     
-    # Step 3: Calculate the SVD X = VΣU*
-    print("Step 3: Calculating SVD of final matrix")
+    # Step 4: project onto estimated range
+    print("Step 4: project into estimated Q range")
+    X, error = apply_fisher_to_matrix(model, data_loader, Q, device)
+    print("Error term = ", error)
+    # Step 5: Calculate the SVD X = VΣU*
+    print("Step 5: Calculating SVD of final matrix")
     # Note: In PyTorch, SVD returns U, S, V where X = USV^T
     U_hat, S, V_hat = torch.linalg.svd(X, full_matrices=False)
     
-    # Step 4: Set U = QÛ
-    print("Step 4: Computing final U = QÛ")
+    # Step 6: Set U = QÛ
+    print("Step 6: Computing Eigenvectors U = QU' (U' is the final matrix eigenvectors)")
     # Fix: U_hat is already the proper U from the algorithm, so we need to use V_hat
     # The proper algorithm mapping to PyTorch's SVD:
     # X = VΣU* in algorithm → X = USV^T in PyTorch

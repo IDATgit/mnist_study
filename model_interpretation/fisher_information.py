@@ -118,9 +118,9 @@ def analyze_fisher_information(fisher_info, model, model_name, output_dir):
     
     # Plot eigenvalue distribution
     plt.figure(figsize=(10, 6))
-    plt.hist(eigenvalues**2, bins=50)
-    plt.title(f'Eigenvalue^2 Distribution of Fisher Information Matrix\n{model_name} ({num_params} parameters)')
-    plt.xlabel('Eigenvalue^2')
+    plt.hist(eigenvalues, bins=50)
+    plt.title(f'Eigenvalue Distribution of Fisher Information Matrix\n{model_name} ({num_params} parameters)')
+    plt.xlabel('Eigenvalue')
     plt.ylabel('count')
     plt.yscale('log')
     plt.grid(True)
@@ -129,10 +129,10 @@ def analyze_fisher_information(fisher_info, model, model_name, output_dir):
     
     # Plot CDF of eigenvalues
     plt.figure(figsize=(10, 6))
-    sorted_evals = np.sort(eigenvalues**2)
+    sorted_evals = np.sort(eigenvalues)
     cdf = np.arange(1, len(sorted_evals) + 1) / len(sorted_evals) * 100
     plt.plot(sorted_evals, cdf)
-    plt.title(f'CDF of Eigenvalue^2 Distribution\n{model_name} ({num_params} parameters)')
+    plt.title(f'CDF of Eigenvalue Distribution\n{model_name} ({num_params} parameters)')
     plt.xlabel('Eigenvalue^2')
     plt.ylabel('Percentage (%)')
     plt.grid(True)
@@ -144,7 +144,7 @@ def analyze_fisher_information(fisher_info, model, model_name, output_dir):
     ccdf = 1 - (np.arange(1, len(sorted_evals) + 1) / len(sorted_evals))  # Complementary CDF as ratio
     plt.plot(sorted_evals, ccdf)
     plt.title(f'Complementary CDF (1-CDF) of Eigenvalue^2 Distribution\n{model_name} ({num_params} parameters)')
-    plt.xlabel('Eigenvalue^2')
+    plt.xlabel('Eigenvalue')
     plt.ylabel('Ratio')
     plt.xscale('log')  # Add log scale to x-axis
     plt.yscale('log')

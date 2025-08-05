@@ -10,3 +10,6 @@ random projection for low rank approximation: https://tropp.caltech.edu/papers/H
 nn pruning https://arxiv.org/abs/2004.14340
 
 Rob webber talk https://www.youtube.com/watch?v=YXrYdRjK_xc
+
+# general stuff
+https://arxiv.org/abs/1802.10026?utm_source=chatgpt.com - loss minima lies on a manifold (different random found minimas are connected via low loss path)
