@@ -30,7 +30,7 @@ def apply_fisher_to_matrix(model, data_loader, X, device):
     k = X.size(1)
     
     # Initialize result matrix Y = A*X
-    Y = torch.zeros((num_params, k), device=device)
+    fisher_info_projection = torch.zeros((num_params, k), device=device)
     error = 0
     # Keep track of samples processed
     total_samples = 0
@@ -44,35 +44,37 @@ def apply_fisher_to_matrix(model, data_loader, X, device):
         # Forward pass
         outputs = model(data)
         probs = torch.softmax(outputs, dim=1)
+        log_probs = torch.log(probs)
         
         # Process each sample in the batch
-        for i in range(batch_size):
-            # Get probability vector for this sample
-            sample_probs = probs[i]
-            
-            # Skip very low probability classes
-            significant_classes = torch.where(sample_probs > 1e-6)[0]
-            
-            # Compute contribution from each significant class
-            for class_idx in significant_classes:
-                # Compute gradient for this sample-class pair
-                model.zero_grad()
-                log_prob = torch.log(sample_probs[class_idx])
-                log_prob.backward(retain_graph=True)
+        for i in range(data.size(0)):
+            # Compute gradients for each class
+            for j in range(probs.size(1)):
+                # Get score for this sample and class
+                score = log_probs[i, j].clone()
+                prob = probs[i, j].item()  # Get scalar value
                 
-                # Extract gradient
-                grad = torch.cat([p.grad.detach().flatten() for p in model.parameters()])
-                grad = grad.view(-1, 1) # coloumn vector
-                # Weight by probability: p * grad * (grad^T * X)
-                prob = sample_probs[class_idx].item()
-                info = prob * grad @ grad.T @ X
-                error += prob*torch.linalg.norm(grad, ord=2) - torch.linalg.norm(info, ord=2)
-                Y += info
-    
+                
+                # Compute gradient with respect to parameters
+                score.backward(retain_graph=True)
+                
+                # Get flattened gradient and detach
+                grad = torch.cat([p.grad.detach().view(-1) for p in model.parameters()])
+                grad = grad.view(num_params, 1)
+
+                # Add outer product to Fisher Information Matrix
+                if prob > 0:
+                    proj = grad.T @ X
+                    error += prob * (grad.norm(2) - proj.norm(2))
+                    fisher_info_projection.add_(prob * grad @ proj)
+                    
+
+                # Zero gradients
+                model.zero_grad()
     # Average over total samples
-    Y /= total_samples
+    fisher_info_projection /= total_samples
     error = error / total_samples
-    return Y, error
+    return fisher_info_projection, error
 
 
 def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1):
@@ -158,7 +160,7 @@ def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir):
     np.save(output_dir / f'{model_name}_V_rsvd.npy', V)
     
     # The eigenvalues of the Fisher Information Matrix are the squares of singular values
-    eigenvalues = S**2
+    eigenvalues = S
     
     # Plot eigenvalue distribution
     plt.figure(figsize=(10, 6))
