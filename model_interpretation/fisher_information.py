@@ -35,12 +35,13 @@ def calculate_fisher_information(model, data_loader):
         data = data.to(device)
         outputs = model(data)
         probs = torch.softmax(outputs, dim=1)
-        min_prob = 1e-9
-        max_prob = 1 - min_prob
-        probs = torch.clamp(probs, min=min_prob, max=max_prob)
-        log_probs = torch.log(probs)
         # Clip log probabilities to avoid numerical instability
         # Set minimum value to log(1e-9) and maximum value to log(1-1e-9)
+        # min_prob = 1e-9
+        # max_prob = 1 - min_prob
+        # probs = torch.clamp(probs, min=min_prob, max=max_prob)
+        log_probs = torch.log(probs)
+        
         
         nof_samples += data.size(0)
         # Compute gradients for each sample in the batch
@@ -72,7 +73,7 @@ def calculate_fisher_information(model, data_loader):
     
     # Average over samples
     print(f"Analyzed {nof_samples} samples. (full training set)")
-    fisher_info /= (nof_samples * data.size(0))
+    fisher_info /= nof_samples
     
     return fisher_info.cpu().numpy()
 
