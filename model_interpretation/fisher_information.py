@@ -17,10 +17,20 @@ from models.specific_models.StandardFullyConnected import StandardFullyConnected
 from models.specific_models.LinearModel import LinearModel
 
 
-def calculate_fisher_information(model, data_loader):
+def calculate_fisher_information(model, data_loader, enable_diagnostics=True, prob_threshold=None):
     """
     Calculate the empirical Fisher Information Matrix using the outer product form.
     FIM = E[∇log p(y|x,θ)∇log p(y|x,θ)^T]
+    
+    Args:
+        model: PyTorch model to analyze
+        data_loader: DataLoader for the dataset  
+        enable_diagnostics: If True, collect diagnostic vectors (prob_values, score_values, etc.)
+        prob_threshold: If provided, skip gradient computations for samples with probability below this threshold
+        
+    Returns:
+        fisher_info: Fisher Information Matrix (numpy array)
+        diagnostics: Dictionary with diagnostic vectors (only if enable_diagnostics=True, else None)
     """
     model.train()  # Set to training mode for gradient computation
     num_params = sum(p.numel() for p in model.parameters())
@@ -29,8 +39,30 @@ def calculate_fisher_information(model, data_loader):
     # Initialize FIM as zero matrix
     fisher_info = torch.zeros((num_params, num_params), device=device)
     
+    # Initialize diagnostics if requested
+    diagnostics = None
+    if enable_diagnostics:
+        # Calculate total number of gradient computations
+        total_computations = 0
+        for batch_idx, (data, _) in enumerate(data_loader):
+            batch_size = data.size(0)
+            outputs = model(data.to(device))
+            num_classes = outputs.size(1)
+            total_computations += batch_size * num_classes
+        
+        print(f"Pre-allocating vectors for {total_computations} gradient computations...")
+        
+        # Pre-allocate diagnostic vectors
+        prob_values = np.zeros(total_computations, dtype=np.float32)
+        score_values = np.zeros(total_computations, dtype=np.float32)
+        fisher_matrix_norms = np.zeros(total_computations, dtype=np.float32)
+        grad_norms = np.zeros(total_computations, dtype=np.float32)
+    
     # Calculate FIM using gradients
     nof_samples = 0
+    computation_idx = 0
+    skipped_samples = 0
+    
     for batch_idx, (data, _) in enumerate(data_loader):
         data = data.to(device)
         outputs = model(data)
@@ -42,7 +74,6 @@ def calculate_fisher_information(model, data_loader):
         # probs = torch.clamp(probs, min=min_prob, max=max_prob)
         log_probs = torch.log(probs)
         
-        
         nof_samples += data.size(0)
         # Compute gradients for each sample in the batch
         for i in range(data.size(0)):
@@ -52,6 +83,17 @@ def calculate_fisher_information(model, data_loader):
                 score = log_probs[i, j].clone()
                 prob = probs[i, j].item()  # Get scalar value
                 
+                # Skip samples below probability threshold if specified
+                if prob_threshold is not None and prob < prob_threshold:
+                    if enable_diagnostics:
+                        # Still record the skipped sample in diagnostics with zero values
+                        score_values[computation_idx] = score.item()
+                        prob_values[computation_idx] = prob
+                        grad_norms[computation_idx] = 0.0
+                        fisher_matrix_norms[computation_idx] = 0.0
+                        computation_idx += 1
+                    skipped_samples += 1
+                    continue
                 
                 # Compute gradient with respect to parameters
                 score.backward(retain_graph=True)
@@ -59,9 +101,25 @@ def calculate_fisher_information(model, data_loader):
                 # Get flattened gradient and detach
                 grad = torch.cat([p.grad.detach().view(-1) for p in model.parameters()])
                 
+                # Store diagnostic values if enabled
+                if enable_diagnostics:
+                    score_values[computation_idx] = score.item()
+                    prob_values[computation_idx] = prob
+                    grad_norms[computation_idx] = grad.norm(2).item()
+                
                 # Add outer product to Fisher Information Matrix
                 if prob > 0:
-                    fisher_info.add_(torch.outer(grad, grad) * prob)
+                    mat_to_add = torch.outer(grad, grad) * prob
+                    if enable_diagnostics:
+                        fisher_matrix_norms[computation_idx] = mat_to_add.norm(2).item()
+                    fisher_info.add_(mat_to_add)
+                else:
+                    if enable_diagnostics:
+                        fisher_matrix_norms[computation_idx] = 0.0
+                
+                if enable_diagnostics:
+                    computation_idx += 1
+                
                 if fisher_info.isnan().any():
                     a = 1
                 # Zero gradients
@@ -71,18 +129,37 @@ def calculate_fisher_information(model, data_loader):
         if (batch_idx + 1) % 10 == 0:
             print(f"Analyzed {(batch_idx + 1) * data.size(0)} samples...")
     
-    # Average over samples
-    print(f"Analyzed {nof_samples} samples. (full training set)")
-    fisher_info /= nof_samples
+    # Average over samples (excluding skipped samples from threshold filtering)
+    effective_samples = nof_samples - (skipped_samples // 10)  # Each sample contributes 10 computations (one per class)
+    if prob_threshold is not None:
+        print(f"Analyzed {nof_samples} samples. Skipped {skipped_samples} computations below threshold {prob_threshold}")
+        print(f"Effective samples used: {effective_samples}")
+    else:
+        print(f"Analyzed {nof_samples} samples. (full training set)")
+        effective_samples = nof_samples
     
-    return fisher_info.cpu().numpy()
+    fisher_info /= effective_samples
+    
+    # Package diagnostic vectors if enabled
+    if enable_diagnostics:
+        diagnostics = {
+            'prob_values': prob_values,
+            'score_values': score_values,
+            'fisher_matrix_norms': fisher_matrix_norms,
+            'grad_norms': grad_norms
+        }
+        return fisher_info.cpu().numpy(), diagnostics
+    else:
+        return fisher_info.cpu().numpy(), None
 
-def analyze_fisher_information(fisher_info, model, model_name, output_dir):
+def analyze_fisher_information(fisher_info, diagnostics, model, model_name, output_dir):
     """
     Analyze the Fisher Information Matrix through spectral decomposition.
+    Optionally saves diagnostic vectors if provided.
     
     Args:
         fisher_info: The Fisher Information Matrix
+        diagnostics: Dictionary containing diagnostic vectors (can be None)
         model: The PyTorch model
         model_name: Name of the model
         output_dir: Directory to save outputs
@@ -93,6 +170,15 @@ def analyze_fisher_information(fisher_info, model, model_name, output_dir):
     
     # Get number of parameters
     num_params = sum(p.numel() for p in model.parameters())
+    
+    # Save diagnostic vectors if provided
+    if diagnostics is not None:
+        print("Saving diagnostic vectors...")
+        for key, values in diagnostics.items():
+            np.save(output_dir / f'{model_name}_{key}.npy', values)
+            print(f"Saved {key}: shape {values.shape}, min={values.min():.6e}, max={values.max():.6e}")
+    else:
+        print("No diagnostic vectors to save (diagnostics disabled)")
     
     # Save the raw Fisher Information Matrix
     print(f"Saving Fisher Information Matrix to {output_dir / f'{model_name}_fisher_matrix.npy'}...")
@@ -172,7 +258,17 @@ def analyze_fisher_information(fisher_info, model, model_name, output_dir):
     
     return stats
 
-def main(model, model_name, data_loader):
+def main(model, model_name, data_loader, enable_diagnostics=True, prob_threshold=None):
+    """
+    Main function to calculate and analyze Fisher Information Matrix.
+    
+    Args:
+        model: PyTorch model to analyze
+        model_name: Name of the model for output files
+        data_loader: DataLoader for the dataset
+        enable_diagnostics: Whether to collect diagnostic information
+        prob_threshold: Optional probability threshold for sample filtering
+    """
     start_time = time.time()
     train_loader = data_loader.get_train_loader()
     # Print model parameters and FIM size
@@ -183,6 +279,12 @@ def main(model, model_name, data_loader):
     output_dir = Path(f'model_interpretation/outputs/fisher_analysis/{model_name}/')
     
     print(f"\nAnalyzing {model_name}...")
+    if enable_diagnostics:
+        print("Diagnostics enabled - collecting detailed sample information")
+    else:
+        print("Diagnostics disabled - faster computation")
+    if prob_threshold is not None:
+        print(f"Using probability threshold: {prob_threshold}")
     
     # Move model to GPU if available
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -190,14 +292,18 @@ def main(model, model_name, data_loader):
     
     # Calculate Fisher Information Matrix
     fim_start_time = time.time()
-    fisher_info = calculate_fisher_information(model, train_loader)
+    result = calculate_fisher_information(model, train_loader, enable_diagnostics, prob_threshold)
+    if enable_diagnostics:
+        fisher_info, diagnostics = result
+    else:
+        fisher_info, diagnostics = result, None
     fim_end_time = time.time()
     print("Fisher Information Matrix calculated.")
     print(f"FIM calculation took {fim_end_time - fim_start_time:.2f} seconds")
     
     # Analyze and save results
     analysis_start_time = time.time()
-    stats = analyze_fisher_information(fisher_info, model, model_name, output_dir)
+    stats = analyze_fisher_information(fisher_info, diagnostics, model, model_name, output_dir)
     analysis_end_time = time.time()
     
     # Print summary statistics
@@ -227,5 +333,12 @@ if __name__ == "__main__":
     print("\nSelect a model and checkpoint for Fisher Information Analysis")
     model, model_name, data_loader = load_model_interactive()
     
+    # Ask user about options
+    enable_diag = input("\nEnable diagnostics collection? (y/n, default=y): ").lower()
+    enable_diagnostics = enable_diag != 'n'
+    
+    prob_thresh = input("Enter probability threshold (or press Enter for none): ").strip()
+    prob_threshold = float(prob_thresh) if prob_thresh else None
+    
     # Run the main function with the selected model
-    main(model, model_name, data_loader) 
+    main(model, model_name, data_loader, enable_diagnostics, prob_threshold) 
