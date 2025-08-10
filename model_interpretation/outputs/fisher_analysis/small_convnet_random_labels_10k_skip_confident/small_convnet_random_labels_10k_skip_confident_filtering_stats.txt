@@ -1,0 +1,8 @@
+total_gradient_computations_processed: 31818
+total_gradient_computations_skipped: 68182
+effective_data_samples: 9688
+total_data_samples: 10000
+prob_min_threshold: 0.1
+prob_max_threshold: 0.9
+gradient_filtering_ratio: 0.318180
+data_sample_utilization: 9688/10000.000000
