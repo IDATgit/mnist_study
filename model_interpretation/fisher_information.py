@@ -96,6 +96,7 @@ def calculate_fisher_information(model, data_loader, enable_diagnostics=True, pr
                     continue
                 
                 # Compute gradient with respect to parameters
+                model.zero_grad()
                 score.backward(retain_graph=True)
                 
                 # Get flattened gradient and detach
@@ -122,8 +123,7 @@ def calculate_fisher_information(model, data_loader, enable_diagnostics=True, pr
                 
                 if fisher_info.isnan().any():
                     a = 1
-                # Zero gradients
-                model.zero_grad()
+                
                 
         
         if (batch_idx + 1) % 10 == 0:
