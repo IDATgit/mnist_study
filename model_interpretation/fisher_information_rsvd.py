@@ -13,24 +13,28 @@ from tqdm import tqdm
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-def apply_fisher_to_matrix(model, data_loader, X, device):
+def apply_fisher_to_matrix(model, data_loader, Q, device, side='right'):
     """
-    Implicitly apply the Fisher Information Matrix to matrix X.
+    Implicitly apply the Fisher Information Matrix to matrix Q.
     
     Args:
         model: The PyTorch model
         data_loader: Data loader for the dataset
-        X: Matrix to apply Fisher to (num_params x k)
+        Q: Matrix to apply Fisher to (num_params x k)
         device: Device to use for computation
+        side: 'right' or 'left' (left will use Q.T)
         
     Returns:
         Result of Fisher Information Matrix applied to X
     """
     num_params = sum(p.numel() for p in model.parameters())
-    k = X.size(1)
+    k = Q.size(1)
     
-    # Initialize result matrix Y = A*X
-    fisher_info_projection = torch.zeros((num_params, k), device=device)
+    # Initialize result matrix Y = Q.T @ A
+    if side == 'right':
+        fisher_info_projection = torch.zeros((num_params, k), device=device)
+    if side == 'left':
+        fisher_info_projection = torch.zeros((k, num_params), device=device)
     error = 0
     # Keep track of samples processed
     total_samples = 0
@@ -56,6 +60,7 @@ def apply_fisher_to_matrix(model, data_loader, X, device):
                 
                 
                 # Compute gradient with respect to parameters
+                model.zero_grad()
                 score.backward(retain_graph=True)
                 
                 # Get flattened gradient and detach
@@ -64,13 +69,18 @@ def apply_fisher_to_matrix(model, data_loader, X, device):
 
                 # Add outer product to Fisher Information Matrix
                 if prob > 0:
-                    proj = grad.T @ X
-                    error += prob * (grad.norm(2) - proj.norm(2))
-                    fisher_info_projection.add_(prob * grad @ proj)
+                    if side == 'right':
+                        proj = grad.T @ Q # grad @ Q => (1, n) @ (n, k) => (1, k) where n is params, k is projection dim
+                        fisher_info_projection.add_(prob * grad @ proj) # (n, 1) @ (1, k) => (n, k)
+                        error += prob * (grad.norm(2) - proj.norm(2))
+                    if side =='left':
+                        proj = Q.T @ grad # Q.T @ grad => (k, n) @ (n, 1) => (k, 1) where n is params, k is projection dim
+                        fisher_info_projection.add_(prob * proj @ grad.T) # (k, 1) @ (1, n) => (k, n)
+                        error += prob * (grad.norm(2) - proj.norm(2))
+
                     
 
-                # Zero gradients
-                model.zero_grad()
+                
     # Average over total samples
     fisher_info_projection /= total_samples
     error = error / total_samples
@@ -108,7 +118,7 @@ def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1):
         # NOTE: this is not the proper way to do it. need  normalization to avoid rounding errors, see algorithm 4.4 at Halko.
         # this is OK for single power itterations (no power iterations)
         # Apply Fisher Information Matrix to X
-        AX, e = apply_fisher_to_matrix(model, data_loader, X, device)
+        AX, e = apply_fisher_to_matrix(model, data_loader, X, device, side='right')
 
         
     # Step 3: QR factorization
@@ -117,24 +127,19 @@ def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1):
     
     # Step 4: project onto estimated range
     print("Step 4: project into estimated Q range")
-    X, error = apply_fisher_to_matrix(model, data_loader, Q, device)
+    B, error = apply_fisher_to_matrix(model, data_loader, Q, device, side='left')
     print("Error term = ", error)
     # Step 5: Calculate the SVD X = VΣU*
     print("Step 5: Calculating SVD of final matrix")
     # Note: In PyTorch, SVD returns U, S, V where X = USV^T
-    U_hat, S, V_hat = torch.linalg.svd(X, full_matrices=False)
+    U_hat, S, V_hat = torch.linalg.svd(B, full_matrices=False)
     
     # Step 6: Set U = QÛ
     print("Step 6: Computing Eigenvectors U = QU' (U' is the final matrix eigenvectors)")
-    # Fix: U_hat is already the proper U from the algorithm, so we need to use V_hat
-    # The proper algorithm mapping to PyTorch's SVD:
-    # X = VΣU* in algorithm → X = USV^T in PyTorch
-    # So U from PyTorch corresponds to V from algorithm, and V^T to U*
-    U = Q  # Q is already the orthonormal basis we want
-    V = U_hat  # U_hat from PyTorch is V from the algorithm
+    U = Q @ U_hat
     
     # Return the approximation components - U is the eigenvectors, S^2 are eigenvalues
-    return U.cpu().numpy(), S.cpu().numpy(), V.cpu().numpy()
+    return U.cpu().numpy(), S.cpu().numpy(), V_hat.cpu().numpy()
 
 
 def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir):
