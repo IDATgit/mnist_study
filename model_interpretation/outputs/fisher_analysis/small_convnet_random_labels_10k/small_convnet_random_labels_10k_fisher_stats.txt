@@ -1,8 +1,8 @@
-max_eigenvalue: 1726.324707
-min_eigenvalue: -0.008145
-mean_eigenvalue: 4.237200
-median_eigenvalue: 0.153177
-std_eigenvalue: 43.665752
-condition_number: -211960.015625
-effective_rank: 17.559227
+max_eigenvalue: 1694.129395
+min_eigenvalue: -0.007241
+mean_eigenvalue: 4.202439
+median_eigenvalue: 0.152277
+std_eigenvalue: 43.117161
+condition_number: -233970.421875
+effective_rank: 17.746134
 num_parameters: 7154.000000
