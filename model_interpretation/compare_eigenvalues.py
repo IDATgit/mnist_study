@@ -60,6 +60,195 @@ def load_eigenvalues(model_name):
     
     return eigenvalues, num_params
 
+def validate_rsvd_approximation(model_name):
+    """
+    Load full Fisher matrix and RSVD components, compute approximation error.
+    
+    Args:
+        model_name: Name of the model to analyze
+    """
+    base_dir = Path(f'model_interpretation/outputs/fisher_analysis/{model_name}')
+    
+    print(f"\nValidating RSVD approximation for {model_name}")
+    print("=" * 60)
+    
+    # Load full Fisher Information Matrix
+    fisher_path = base_dir / f"{model_name}_fisher_matrix.npy"
+    if not fisher_path.exists():
+        raise FileNotFoundError(f"Full Fisher matrix not found: {fisher_path}")
+    
+    print("Loading full Fisher Information Matrix...")
+    F_full = np.load(fisher_path)
+    print(f"Full Fisher matrix shape: {F_full.shape}")
+    
+    # Load RSVD components
+    U_path = base_dir / f"{model_name}_U_rsvd.npy"
+    S_path = base_dir / f"{model_name}_S_rsvd.npy"
+    V_path = base_dir / f"{model_name}_V_rsvd.npy"
+    
+    if not all(path.exists() for path in [U_path, S_path, V_path]):
+        raise FileNotFoundError("RSVD components not found")
+    
+    print("Loading RSVD components...")
+    U = np.load(U_path)
+    S = np.load(S_path)
+    V = np.load(V_path)
+    
+    print(f"U shape: {U.shape}")
+    print(f"S shape: {S.shape}")
+    print(f"V shape: {V.shape}")
+    
+    # Reconstruct approximated Fisher matrix
+    print("\nReconstructing approximated Fisher matrix...")
+    
+    # For Fisher matrix approximation: F_approx = U @ diag(S) @ V^T
+    k = U.shape[1]
+    # Reconstruct the approximation
+    F_approx = U @ np.diag(S) @ V
+    
+    print(f"Approximated Fisher matrix shape: {F_approx.shape}")
+    
+    # Calculate Frobenius norm error
+    print("\nCalculating approximation error...")
+    error_matrix = F_full - F_approx
+    frobenius_error = np.linalg.norm(error_matrix, 'fro')
+    frobenius_full = np.linalg.norm(F_full, 'fro')
+    
+    # Calculate relative error
+    relative_error = frobenius_error / frobenius_full
+    
+    # Print results
+    print(f"\nRSVD Approximation Results:")
+    print(f"Number of components (k): {k}")
+    print(f"Full Fisher matrix Frobenius norm: {frobenius_full:.6e}")
+    print(f"Approximated Fisher matrix Frobenius norm: {np.linalg.norm(F_approx, 'fro'):.6e}")
+    print(f"Approximation error (Frobenius norm): {frobenius_error:.6e}")
+    print(f"Relative error ratio: {relative_error:.6f} ({relative_error*100:.2f}%)")
+    
+    # Additional statistics
+    max_singular_value = S[0] if len(S) > 0 else 0
+    min_singular_value = S[-1] if len(S) > 0 else 0
+    
+    print(f"\nSingular value statistics:")
+    print(f"Max singular value: {max_singular_value:.6e}")
+    print(f"Min singular value: {min_singular_value:.6e}")
+    if min_singular_value > 0:
+        print(f"Condition number (max/min): {max_singular_value/min_singular_value:.6e}")
+    
+    # Compare eigenvalues and create error plots
+    print("\nComparing eigenvalues...")
+    
+    # Load pre-computed eigenvalues from full Fisher analysis
+    eigenvals_full_path = base_dir / f"{model_name}_eigenvalues.npy"
+    if not eigenvals_full_path.exists():
+        raise FileNotFoundError(f"Full eigenvalues not found: {eigenvals_full_path}")
+    
+    eigenvals_full = np.load(eigenvals_full_path)
+    eigenvals_full = np.sort(eigenvals_full)[::-1]  # Sort descending
+    
+    # Use singular values squared as eigenvalues for RSVD approximation
+    eigenvals_approx = S
+    eigenvals_approx = np.sort(eigenvals_approx)[::-1]  # Sort descending
+    
+    # Only compare up to k components (the number of estimated eigenvalues)
+    eigenvals_full = eigenvals_full[:k]  # Take only first k eigenvalues from full computation
+    eigenvals_approx = eigenvals_approx[:k]  # Take only first k eigenvalues from RSVD
+    
+    # Calculate eigenvalue errors
+    eigenval_absolute_error = np.abs(eigenvals_full - eigenvals_approx)
+    eigenval_relative_error = np.abs(eigenval_absolute_error / (np.abs(eigenvals_full) + 1e-12))  # Add small epsilon to avoid division by zero
+    
+    # Create eigenvalue error plot
+    plt.figure(figsize=(12, 8))
+    
+    # Create subplot with two y-axes
+    fig, ax1 = plt.subplots(figsize=(12, 8))
+    
+    # Plot absolute error on left y-axis (linear scale)
+    color = 'tab:red'
+    ax1.set_xlabel('Eigenvalue Index')
+    ax1.set_ylabel('Absolute Error |λ_full - λ_approx|', color=color)
+    line1 = ax1.plot(range(1, len(eigenval_absolute_error) + 1), eigenval_absolute_error, 
+                     color=color, linewidth=2, label='Absolute Error')
+    ax1.tick_params(axis='y', labelcolor=color)
+    ax1.grid(True, alpha=0.3)
+    
+    # Set custom y-axis ticks for absolute error (linear)
+    abs_min = np.min(eigenval_absolute_error)
+    abs_max = np.max(eigenval_absolute_error)
+    abs_ticks = np.linspace(abs_min, abs_max, 7)  # 7 linear ticks including min and max
+    ax1.set_yticks(abs_ticks)
+    ax1.set_yticklabels([f'{tick:.3f}' for tick in abs_ticks])
+    
+    # Create second y-axis for relative error (linear scale)
+    ax2 = ax1.twinx()
+    color = 'tab:blue'
+    ax2.set_ylabel('Relative Error |Error| / |λ_full|', color=color)
+    line2 = ax2.plot(range(1, len(eigenval_relative_error) + 1), eigenval_relative_error, 
+                     color=color, linewidth=2, linestyle='--', label='Relative Error')
+    ax2.tick_params(axis='y', labelcolor=color)
+    
+    # Set custom y-axis ticks for relative error (linear)
+    rel_min = np.min(eigenval_relative_error)
+    rel_max = np.max(eigenval_relative_error)
+    rel_ticks = np.linspace(rel_min, rel_max, 7)  # 7 linear ticks including min and max
+    ax2.set_yticks(rel_ticks)
+    ax2.set_yticklabels([f'{tick:.3f}' for tick in rel_ticks])
+    
+    # Add title and legend
+    plt.title(f'Eigenvalue Approximation Errors for {model_name}\n(k={k} components)')
+    
+    # Combine legends from both axes
+    lines = [line1[0], line2[0]]
+    labels = [l.get_label() for l in lines]
+    ax1.legend(lines, labels, loc='upper right')
+    
+    plt.tight_layout()
+    
+    # Save the plot
+    error_plot_path = base_dir / f"{model_name}_eigenvalue_errors.png"
+    plt.savefig(error_plot_path, dpi=300, bbox_inches='tight')
+    print(f"Saved eigenvalue error plot to: {error_plot_path}")
+    plt.close()
+    
+    # Create a second plot: zoomed-in eigenvalue spectrum comparison for RSVD range only
+    plt.figure(figsize=(12, 8))
+    
+    # Plot only the first k eigenvalues (RSVD range)
+    indices = range(1, k + 1)
+    plt.semilogy(indices, eigenvals_full[:k], 'b-', linewidth=2, label='Full Computation')
+    plt.semilogy(indices, eigenvals_approx[:k], 'r--', linewidth=2, label='RSVD Approximation')
+    
+    plt.xlabel('Eigenvalue Index')
+    plt.ylabel('Eigenvalue')
+    plt.title(f'Eigenvalue Spectrum Comparison (Zoomed to RSVD Range)\n{model_name} (k={k} components)')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    
+    # Save the zoomed plot
+    zoomed_plot_path = base_dir / f"{model_name}_eigenvalue_spectrum_zoomed.png"
+    plt.savefig(zoomed_plot_path, dpi=300, bbox_inches='tight')
+    print(f"Saved zoomed eigenvalue spectrum plot to: {zoomed_plot_path}")
+    plt.close()
+    
+    # Print some error statistics
+    print(f"\nEigenvalue Error Statistics:")
+    print(f"Max absolute error: {np.max(eigenval_absolute_error):.6e}")
+    print(f"Mean absolute error: {np.mean(eigenval_absolute_error):.6e}")
+    print(f"Max relative error: {np.max(eigenval_relative_error):.6e}")
+    print(f"Mean relative error: {np.mean(eigenval_relative_error):.6e}")
+    
+    return {
+        'frobenius_error': frobenius_error,
+        'frobenius_full': frobenius_full,
+        'relative_error': relative_error,
+        'num_components': k,
+        'max_singular_value': max_singular_value,
+        'min_singular_value': min_singular_value,
+        'eigenval_absolute_error': eigenval_absolute_error,
+        'eigenval_relative_error': eigenval_relative_error
+    }
+
 def compare_eigenvalue_distributions(models, save_dir=None):
     """
     Compare eigenvalue distributions between multiple models
@@ -138,11 +327,20 @@ def print_eigenvalue_stats(models):
             print(f"{model_name:<30} Error: {e}")
 
 if __name__ == "__main__":
+    # Validate RSVD approximation for small_convnet_10k
+    model_name = "small_convnet_10k"
+    
+    try:
+        results = validate_rsvd_approximation(model_name)
+        print("\nValidation completed successfully!")
+    except Exception as e:
+        print(f"Error during validation: {e}")
+    
     # Models to compare
     models = ['small_convnet', 'small_convnet_random_images', 'small_convnet_random_labels']
     
     # Compare eigenvalues - both save and show
-    compare_eigenvalue_distributions(models, save_dir='model_interpretation/outputs/eigenvalue_comparison')
+    # compare_eigenvalue_distributions(models, save_dir='model_interpretation/outputs/eigenvalue_comparison')
     
     # Print statistics
-    print_eigenvalue_stats(models) 
+    # print_eigenvalue_stats(models) 
