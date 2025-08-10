@@ -21,6 +21,7 @@ workplan.txt
 .installed.cfg
 *.egg
 *.npy
+*.npz
 # PyTorch model checkpoints - ignore all checkpoints
 trainers/outputs/*/checkpoints/*.pt
 
