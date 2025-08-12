@@ -139,10 +139,10 @@ def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1):
     U = Q @ U_hat
     
     # Return the approximation components - U is the eigenvectors, S^2 are eigenvalues
-    return U.cpu().numpy(), S.cpu().numpy(), V_hat.cpu().numpy()
+    return U.cpu().numpy(), S.cpu().numpy(), V_hat.cpu().numpy(), error
 
 
-def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir):
+def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir, error=None):
     """
     Analyze the Fisher Information Matrix through its SVD decomposition.
     
@@ -215,6 +215,10 @@ def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir):
         'num_parameters': num_params
     }
     
+    # Add error information if provided
+    if error is not None:
+        stats['rsvd_error_bound'] = error
+    
     # Save statistics
     with open(output_dir / f'{model_name}_fisher_stats_rsvd.txt', 'w') as f:
         for key, value in stats.items():
@@ -251,14 +255,14 @@ def main(model, model_name, data_loader):
     fim_start_time = time.time()
     k = 100  # Number of components to extract
     power_iterations = 1  # Number of power iterations
-    U, S, V = calculate_fisher_rsvd(model, train_loader, k, power_iterations)
+    U, S, V, error = calculate_fisher_rsvd(model, train_loader, k, power_iterations)
     fim_end_time = time.time()
     print("Fisher Information Matrix analysis with RSVD completed.")
     print(f"RSVD calculation took {fim_end_time - fim_start_time:.2f} seconds")
     
     # Analyze and save results
     analysis_start_time = time.time()
-    stats = analyze_fisher_information_rsvd(U, S, V, model, original_model_name, output_dir)
+    stats = analyze_fisher_information_rsvd(U, S, V, model, original_model_name, output_dir, error)
     analysis_end_time = time.time()
     
     # Print summary statistics
