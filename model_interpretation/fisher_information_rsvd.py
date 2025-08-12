@@ -253,7 +253,7 @@ def main(model, model_name, data_loader):
     
     # Calculate Fisher Information Matrix using RSVD
     fim_start_time = time.time()
-    k = 100  # Number of components to extract
+    k = 1000  # Number of components to extract
     power_iterations = 1  # Number of power iterations
     U, S, V, error = calculate_fisher_rsvd(model, train_loader, k, power_iterations)
     fim_end_time = time.time()
