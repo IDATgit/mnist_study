@@ -142,7 +142,7 @@ def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1):
     return U.cpu().numpy(), S.cpu().numpy(), V_hat.cpu().numpy(), error
 
 
-def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir, error=None):
+def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir, error=None, data_type='train'):
     """
     Analyze the Fisher Information Matrix through its SVD decomposition.
     
@@ -151,6 +151,8 @@ def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir, erro
         model: The PyTorch model
         model_name: Name of the model
         output_dir: Directory to save outputs
+        error: Error bound from RSVD computation
+        data_type: Type of data used ('train' or 'test')
     """
     # Create output directory if it doesn't exist
     output_dir = Path(output_dir)
@@ -160,9 +162,9 @@ def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir, erro
     num_params = sum(p.numel() for p in model.parameters())
     
     # Save SVD components
-    np.save(output_dir / f'{model_name}_U_rsvd.npy', U)
-    np.save(output_dir / f'{model_name}_S_rsvd.npy', S)
-    np.save(output_dir / f'{model_name}_V_rsvd.npy', V)
+    np.save(output_dir / f'{data_type}_{model_name}_U_rsvd.npy', U)
+    np.save(output_dir / f'{data_type}_{model_name}_S_rsvd.npy', S)
+    np.save(output_dir / f'{data_type}_{model_name}_V_rsvd.npy', V)
     
     # The eigenvalues of the Fisher Information Matrix are the squares of singular values
     eigenvalues = S
@@ -170,12 +172,12 @@ def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir, erro
     # Plot eigenvalue distribution
     plt.figure(figsize=(10, 6))
     plt.hist(eigenvalues, bins=50)
-    plt.title(f'Eigenvalue Distribution of Fisher Information Matrix (RSVD)\n{model_name} ({num_params} parameters)')
+    plt.title(f'Eigenvalue Distribution of Fisher Information Matrix (RSVD) - {data_type.title()} Data\n{model_name} ({num_params} parameters)')
     plt.xlabel('Eigenvalue')
     plt.ylabel('Count')
     plt.yscale('log')
     plt.grid(True)
-    plt.savefig(output_dir / f'{model_name}_fisher_eigenvalues_rsvd.png')
+    plt.savefig(output_dir / f'{data_type}_{model_name}_fisher_eigenvalues_rsvd.png')
     plt.close()
     
     # Plot CDF of eigenvalues
@@ -183,24 +185,36 @@ def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir, erro
     sorted_evals = np.sort(eigenvalues)
     cdf = np.arange(1, len(sorted_evals) + 1) / len(sorted_evals) * 100
     plt.plot(sorted_evals, cdf)
-    plt.title(f'CDF of Eigenvalue Distribution (RSVD)\n{model_name} ({num_params} parameters)')
+    plt.title(f'CDF of Eigenvalue Distribution (RSVD) - {data_type.title()} Data\n{model_name} ({num_params} parameters)')
     plt.xlabel('Eigenvalue')
     plt.ylabel('Percentage (%)')
     plt.grid(True)
-    plt.savefig(output_dir / f'{model_name}_fisher_eigenvalues_cdf_rsvd.png')
+    plt.savefig(output_dir / f'{data_type}_{model_name}_fisher_eigenvalues_cdf_rsvd.png')
     plt.close()
     
     # Plot complementary CDF (1-CDF) with log scale
     plt.figure(figsize=(10, 6))
     ccdf = 1 - (np.arange(1, len(sorted_evals) + 1) / len(sorted_evals))  # Complementary CDF as ratio
     plt.plot(sorted_evals, ccdf)
-    plt.title(f'Complementary CDF (1-CDF) of Eigenvalue Distribution (RSVD)\n{model_name} ({num_params} parameters)')
+    plt.title(f'Complementary CDF (1-CDF) of Eigenvalue Distribution (RSVD) - {data_type.title()} Data\n{model_name} ({num_params} parameters)')
     plt.xlabel('Eigenvalue')
     plt.ylabel('Ratio')
     plt.xscale('log')  # Add log scale to x-axis
     plt.yscale('log')
     plt.grid(True, which="both")  # Show grid for both major and minor ticks
-    plt.savefig(output_dir / f'{model_name}_fisher_eigenvalues_ccdf_log_rsvd.png')
+    plt.savefig(output_dir / f'{data_type}_{model_name}_fisher_eigenvalues_ccdf_log_rsvd.png')
+    plt.close()
+    
+    # Plot simple eigenvalue plot (index vs value)
+    plt.figure(figsize=(10, 6))
+    eigenvalue_indices = np.arange(1, len(eigenvalues) + 1)
+    plt.plot(eigenvalue_indices, eigenvalues, 'b-', linewidth=1.5)
+    plt.title(f'Eigenvalue Spectrum (RSVD) - {data_type.title()} Data\n{model_name} ({num_params} parameters)')
+    plt.xlabel('Eigenvalue Index')
+    plt.ylabel('Eigenvalue')
+    plt.yscale('log')
+    plt.grid(True, alpha=0.3)
+    plt.savefig(output_dir / f'{data_type}_{model_name}_fisher_eigenvalue_spectrum_rsvd.png')
     plt.close()
     
     # Calculate statistics
@@ -220,7 +234,7 @@ def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir, erro
         stats['rsvd_error_bound'] = error
     
     # Save statistics
-    with open(output_dir / f'{model_name}_fisher_stats_rsvd.txt', 'w') as f:
+    with open(output_dir / f'{data_type}_{model_name}_fisher_stats_rsvd.txt', 'w') as f:
         for key, value in stats.items():
             f.write(f'{key}: {value:.6f}\n')
     
@@ -229,7 +243,26 @@ def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir, erro
 
 def main(model, model_name, data_loader):
     start_time = time.time()
-    train_loader = data_loader.get_train_loader()
+    
+    # Let user choose between train and test data
+    print("\nChoose data for Fisher Information analysis:")
+    print("1. Train data")
+    print("2. Test data")
+    
+    while True:
+        choice = input("Enter choice (1 or 2): ").strip()
+        if choice == '1':
+            data_for_analysis = data_loader.get_train_loader()
+            data_type = 'train'
+            break
+        elif choice == '2':
+            data_for_analysis = data_loader.get_test_loader()
+            data_type = 'test'
+            break
+        else:
+            print("Invalid choice. Please enter 1 or 2.")
+    
+    print(f"Using {data_type} data for Fisher Information analysis.")
     
     # Store the original model name for directory structure
     original_model_name = model_name
@@ -255,18 +288,18 @@ def main(model, model_name, data_loader):
     fim_start_time = time.time()
     k = 1000  # Number of components to extract
     power_iterations = 1  # Number of power iterations
-    U, S, V, error = calculate_fisher_rsvd(model, train_loader, k, power_iterations)
+    U, S, V, error = calculate_fisher_rsvd(model, data_for_analysis, k, power_iterations)
     fim_end_time = time.time()
     print("Fisher Information Matrix analysis with RSVD completed.")
     print(f"RSVD calculation took {fim_end_time - fim_start_time:.2f} seconds")
     
     # Analyze and save results
     analysis_start_time = time.time()
-    stats = analyze_fisher_information_rsvd(U, S, V, model, original_model_name, output_dir, error)
+    stats = analyze_fisher_information_rsvd(U, S, V, model, original_model_name, output_dir, error, data_type)
     analysis_end_time = time.time()
     
     # Print summary statistics
-    print(f"\nFisher Information Analysis for {original_model_name} (RSVD):")
+    print(f"\nFisher Information Analysis for {original_model_name} (RSVD) - {data_type.title()} Data:")
     print(f"Max eigenvalue: {stats['max_eigenvalue']:.6f}")
     print(f"Min eigenvalue: {stats['min_eigenvalue']:.6f}")
     print(f"Condition number: {stats['condition_number']:.6f}")
