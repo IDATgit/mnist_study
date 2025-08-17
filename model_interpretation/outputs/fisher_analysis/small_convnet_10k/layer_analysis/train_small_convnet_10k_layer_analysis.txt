@@ -1,0 +1,125 @@
+Layer-wise Fisher Eigenvector Analysis
+Model: small_convnet_10k
+Data: train
+============================================================
+
+INDIVIDUAL LAYER CONTRIBUTIONS:
+
+fc_layers.0.weight:
+  Mass fraction: 0.445690
+  Mean |value|: 0.002071
+  Max |value|: 0.030074
+  Std deviation: 0.003457
+  Parameter count: 6272
+  Index range: 696-6968
+
+conv_layers.1.weight:
+  Mass fraction: 0.315335
+  Mean |value|: 0.015952
+  Max |value|: 0.127832
+  Std deviation: 0.023032
+  Parameter count: 576
+  Index range: 80-656
+
+fc_layers.1.weight:
+  Mass fraction: 0.120557
+  Mean |value|: 0.021956
+  Max |value|: 0.114876
+  Std deviation: 0.030772
+  Parameter count: 160
+  Index range: 6984-7144
+
+conv_layers.0.weight:
+  Mass fraction: 0.095597
+  Mean |value|: 0.038689
+  Max |value|: 0.359937
+  Std deviation: 0.073467
+  Parameter count: 72
+  Index range: 0-72
+
+conv_layers.0.bias:
+  Mass fraction: 0.008587
+  Mean |value|: 0.031279
+  Max |value|: 0.183024
+  Std deviation: 0.063860
+  Parameter count: 8
+  Index range: 72-80
+
+batch_norms.0.weight:
+  Mass fraction: 0.003071
+  Mean |value|: 0.011185
+  Max |value|: 0.021638
+  Std deviation: 0.013515
+  Parameter count: 8
+  Index range: 664-672
+
+batch_norms.1.bias:
+  Mass fraction: 0.002550
+  Mean |value|: 0.009288
+  Max |value|: 0.025430
+  Std deviation: 0.011491
+  Parameter count: 8
+  Index range: 688-696
+
+batch_norms.0.bias:
+  Mass fraction: 0.002500
+  Mean |value|: 0.009107
+  Max |value|: 0.020078
+  Std deviation: 0.007799
+  Parameter count: 8
+  Index range: 672-680
+
+conv_layers.1.bias:
+  Mass fraction: 0.002303
+  Mean |value|: 0.008390
+  Max |value|: 0.030229
+  Std deviation: 0.011131
+  Parameter count: 8
+  Index range: 656-664
+
+batch_norms.1.weight:
+  Mass fraction: 0.002053
+  Mean |value|: 0.007479
+  Max |value|: 0.018330
+  Std deviation: 0.008905
+  Parameter count: 8
+  Index range: 680-688
+
+fc_layers.0.bias:
+  Mass fraction: 0.000928
+  Mean |value|: 0.001690
+  Max |value|: 0.004594
+  Std deviation: 0.002015
+  Parameter count: 16
+  Index range: 6968-6984
+
+fc_layers.1.bias:
+  Mass fraction: 0.000829
+  Mean |value|: 0.002415
+  Max |value|: 0.006371
+  Std deviation: 0.003006
+  Parameter count: 10
+  Index range: 7144-7154
+
+
+CATEGORY ANALYSIS:
+
+Weights vs Biases:
+  Total weight contribution: 0.982302
+  Total bias contribution: 0.017698
+  Weight/Bias ratio: 55.504
+
+Layer Types:
+  conv1: mass=0.104184, params=80
+  conv2: mass=0.317638, params=584
+  fc1: mass=0.446618, params=6288
+  fc2: mass=0.121385, params=170
+
+
+KEY INSIGHTS:
+• Most important layer: fc_layers.0.weight (0.446 of total mass)
+• Early layers total mass: 0.421823
+• Late layers total mass: 0.121385
+• Early/Late ratio: 3.475
+• Weights dominate over biases (98.2% vs 1.8%)
+• Strong early layer contribution confirms bow-tie pattern

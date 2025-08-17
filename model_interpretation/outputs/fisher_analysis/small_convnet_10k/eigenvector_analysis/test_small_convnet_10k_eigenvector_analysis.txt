@@ -1,0 +1,22 @@
+First Eigenvector Analysis for small_convnet_10k (test data)
+============================================================
+
+Eigenvalue: 17.788336
+Number of parameters: 7154
+
+BOW-TIE PATTERN ANALYSIS:
+  Bow-tie Score: 6.079331
+  Early Region Importance (first 10%): 0.016608
+  Middle Region Importance (middle 80%): 0.001806
+  Late Region Importance (last 10%): 0.005349
+
+MASS DISTRIBUTION:
+  Early Region Mass Fraction: 0.4560
+  Middle Region Mass Fraction: 0.3969
+  Late Region Mass Fraction: 0.1471
+
+GENERAL STATISTICS:
+  Max absolute value: 0.389930
+  Mean absolute value: 0.003640
+  Standard deviation: 0.011814
+  Sparsity (% near zero): 0.7997

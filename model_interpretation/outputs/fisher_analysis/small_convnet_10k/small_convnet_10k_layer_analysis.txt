@@ -1,0 +1,84 @@
+Layer-wise Fisher Information Analysis for small_convnet_10k
+============================================================
+
+Total parameters: 7,154
+
+Model Architecture:
+----------------------------------------
+conv_layers.0.weight: 72 params [8, 1, 3, 3]
+conv_layers.0.bias: 8 params [8]
+conv_layers.1.weight: 576 params [8, 8, 3, 3]
+conv_layers.1.bias: 8 params [8]
+batch_norms.0.weight: 8 params [8]
+batch_norms.0.bias: 8 params [8]
+batch_norms.1.weight: 8 params [8]
+batch_norms.1.bias: 8 params [8]
+fc_layers.0.weight: 6,272 params [16, 392] (compression: 24.50x)
+fc_layers.0.bias: 16 params [16]
+fc_layers.1.weight: 160 params [10, 16] (compression: 1.60x)
+fc_layers.1.bias: 10 params [10]
+
+Layer Contributions (sorted by Fisher mass):
+------------------------------------------------------------
+fc_layers.0.weight:
+  Mass fraction: 0.445690
+  Parameter count: 6,272
+  Mean |v|: 0.002071
+  Compression ratio: 24.50x
+
+conv_layers.1.weight:
+  Mass fraction: 0.315335
+  Parameter count: 576
+  Mean |v|: 0.015952
+
+fc_layers.1.weight:
+  Mass fraction: 0.120557
+  Parameter count: 160
+  Mean |v|: 0.021956
+  Compression ratio: 1.60x
+
+conv_layers.0.weight:
+  Mass fraction: 0.095597
+  Parameter count: 72
+  Mean |v|: 0.038689
+
+conv_layers.0.bias:
+  Mass fraction: 0.008587
+  Parameter count: 8
+  Mean |v|: 0.031279
+
+batch_norms.0.weight:
+  Mass fraction: 0.003071
+  Parameter count: 8
+  Mean |v|: 0.011185
+
+batch_norms.1.bias:
+  Mass fraction: 0.002550
+  Parameter count: 8
+  Mean |v|: 0.009288
+
+batch_norms.0.bias:
+  Mass fraction: 0.002500
+  Parameter count: 8
+  Mean |v|: 0.009107
+
+conv_layers.1.bias:
+  Mass fraction: 0.002303
+  Parameter count: 8
+  Mean |v|: 0.008390
+
+batch_norms.1.weight:
+  Mass fraction: 0.002053
+  Parameter count: 8
+  Mean |v|: 0.007479
+
+fc_layers.0.bias:
+  Mass fraction: 0.000928
+  Parameter count: 16
+  Mean |v|: 0.001690
+
+fc_layers.1.bias:
+  Mass fraction: 0.000829
+  Parameter count: 10
+  Mean |v|: 0.002415
+

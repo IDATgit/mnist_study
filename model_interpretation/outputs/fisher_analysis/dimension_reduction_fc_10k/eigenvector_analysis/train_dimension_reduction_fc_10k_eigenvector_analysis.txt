@@ -1,0 +1,22 @@
+First Eigenvector Analysis for dimension_reduction_fc_10k (train data)
+============================================================
+
+Eigenvalue: 0.883530
+Number of parameters: 412141
+
+BOW-TIE PATTERN ANALYSIS:
+  Bow-tie Score: 3.205800
+  Early Region Importance (first 10%): 0.000194
+  Middle Region Importance (middle 80%): 0.000239
+  Late Region Importance (last 10%): 0.001338
+
+MASS DISTRIBUTION:
+  Early Region Mass Fraction: 0.0563
+  Middle Region Mass Fraction: 0.5551
+  Late Region Mass Fraction: 0.3886
+
+GENERAL STATISTICS:
+  Max absolute value: 0.143040
+  Mean absolute value: 0.000344
+  Standard deviation: 0.001558
+  Sparsity (% near zero): 0.9424

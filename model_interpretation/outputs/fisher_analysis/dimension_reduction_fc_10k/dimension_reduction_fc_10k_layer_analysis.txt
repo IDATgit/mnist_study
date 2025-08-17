@@ -1,0 +1,173 @@
+Layer-wise Fisher Information Analysis for dimension_reduction_fc_10k
+============================================================
+
+Total parameters: 412,141
+
+Model Architecture:
+----------------------------------------
+fc_layers.0.weight: 307,328 params [392, 784] (compression: 2.00x)
+fc_layers.0.bias: 392 params [392]
+fc_layers.1.weight: 76,832 params [196, 392] (compression: 2.00x)
+fc_layers.1.bias: 196 params [196]
+fc_layers.2.weight: 19,208 params [98, 196] (compression: 2.00x)
+fc_layers.2.bias: 98 params [98]
+fc_layers.3.weight: 4,802 params [49, 98] (compression: 2.00x)
+fc_layers.3.bias: 49 params [49]
+fc_layers.4.weight: 1,225 params [25, 49] (compression: 1.96x)
+fc_layers.4.bias: 25 params [25]
+fc_layers.5.weight: 300 params [12, 25] (compression: 2.08x)
+fc_layers.5.bias: 12 params [12]
+fc_layers.6.weight: 120 params [10, 12] (compression: 1.20x)
+fc_layers.6.bias: 10 params [10]
+batch_norms.0.weight: 392 params [392]
+batch_norms.0.bias: 392 params [392]
+batch_norms.1.weight: 196 params [196]
+batch_norms.1.bias: 196 params [196]
+batch_norms.2.weight: 98 params [98]
+batch_norms.2.bias: 98 params [98]
+batch_norms.3.weight: 49 params [49]
+batch_norms.3.bias: 49 params [49]
+batch_norms.4.weight: 25 params [25]
+batch_norms.4.bias: 25 params [25]
+batch_norms.5.weight: 12 params [12]
+batch_norms.5.bias: 12 params [12]
+
+Layer Contributions (sorted by Fisher mass):
+------------------------------------------------------------
+fc_layers.0.weight:
+  Mass fraction: 0.430421
+  Parameter count: 307,328
+  Mean |v|: 0.000199
+  Compression ratio: 2.00x
+
+fc_layers.1.weight:
+  Mass fraction: 0.215222
+  Parameter count: 76,832
+  Mean |v|: 0.000398
+  Compression ratio: 2.00x
+
+fc_layers.2.weight:
+  Mass fraction: 0.131965
+  Parameter count: 19,208
+  Mean |v|: 0.000975
+  Compression ratio: 2.00x
+
+fc_layers.3.weight:
+  Mass fraction: 0.075745
+  Parameter count: 4,802
+  Mean |v|: 0.002238
+  Compression ratio: 2.00x
+
+fc_layers.4.weight:
+  Mass fraction: 0.056500
+  Parameter count: 1,225
+  Mean |v|: 0.006545
+  Compression ratio: 1.96x
+
+fc_layers.5.weight:
+  Mass fraction: 0.041970
+  Parameter count: 300
+  Mean |v|: 0.019853
+  Compression ratio: 2.08x
+
+batch_norms.0.bias:
+  Mass fraction: 0.010677
+  Parameter count: 392
+  Mean |v|: 0.003865
+
+fc_layers.6.weight:
+  Mass fraction: 0.008563
+  Parameter count: 120
+  Mean |v|: 0.010127
+  Compression ratio: 1.20x
+
+batch_norms.1.bias:
+  Mass fraction: 0.004726
+  Parameter count: 196
+  Mean |v|: 0.003422
+
+batch_norms.0.weight:
+  Mass fraction: 0.004247
+  Parameter count: 392
+  Mean |v|: 0.001538
+
+batch_norms.1.weight:
+  Mass fraction: 0.003399
+  Parameter count: 196
+  Mean |v|: 0.002461
+
+batch_norms.2.bias:
+  Mass fraction: 0.002163
+  Parameter count: 98
+  Mean |v|: 0.003132
+
+batch_norms.2.weight:
+  Mass fraction: 0.002119
+  Parameter count: 98
+  Mean |v|: 0.003069
+
+batch_norms.3.weight:
+  Mass fraction: 0.001651
+  Parameter count: 49
+  Mean |v|: 0.004782
+
+batch_norms.4.weight:
+  Mass fraction: 0.001635
+  Parameter count: 25
+  Mean |v|: 0.009282
+
+batch_norms.5.bias:
+  Mass fraction: 0.001492
+  Parameter count: 12
+  Mean |v|: 0.017647
+
+fc_layers.1.bias:
+  Mass fraction: 0.001430
+  Parameter count: 196
+  Mean |v|: 0.001035
+
+batch_norms.3.bias:
+  Mass fraction: 0.001250
+  Parameter count: 49
+  Mean |v|: 0.003619
+
+batch_norms.5.weight:
+  Mass fraction: 0.000729
+  Parameter count: 12
+  Mean |v|: 0.008620
+
+fc_layers.2.bias:
+  Mass fraction: 0.000703
+  Parameter count: 98
+  Mean |v|: 0.001017
+
+fc_layers.6.bias:
+  Mass fraction: 0.000644
+  Parameter count: 10
+  Mean |v|: 0.009132
+
+fc_layers.4.bias:
+  Mass fraction: 0.000640
+  Parameter count: 25
+  Mean |v|: 0.003634
+
+batch_norms.4.bias:
+  Mass fraction: 0.000577
+  Parameter count: 25
+  Mean |v|: 0.003277
+
+fc_layers.3.bias:
+  Mass fraction: 0.000568
+  Parameter count: 49
+  Mean |v|: 0.001644
+
+fc_layers.0.bias:
+  Mass fraction: 0.000508
+  Parameter count: 392
+  Mean |v|: 0.000184
+
+fc_layers.5.bias:
+  Mass fraction: 0.000455
+  Parameter count: 12
+  Mean |v|: 0.005381
+

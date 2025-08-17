@@ -1,0 +1,6 @@
+Bow-tie Pattern Comparison for small_convnet_10k
+==================================================
+
+Train bow-tie score: 6.118827
+Test bow-tie score: 6.079331
+Score difference: 0.039495

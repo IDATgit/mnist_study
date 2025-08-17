@@ -1,0 +1,24 @@
+Random vs Trained Network Fisher Analysis - small_convnet_10k
+============================================================
+
+RANDOM NETWORK ANALYSIS:
+  Eigenvalue: 18.351927
+  Bow-tie Score: 0.947076
+  Early/Middle/Late Importance: 0.007618/0.006856/0.005369
+  Early/Middle/Late Mass: 0.1122/0.8086/0.0792
+  Sparsity: 0.2628
+
+TRAINED NETWORK ANALYSIS:
+  Eigenvalue: 1.418086
+  Bow-tie Score: 6.118827
+  Early/Middle/Late Importance: 0.017628/0.002013/0.007005
+  Early/Middle/Late Mass: 0.4325/0.3953/0.1721
+  Sparsity: 0.7541
+
+COMPARISON:
+  Bow-tie Score Difference: 5.171751
+  Early Importance Difference: 0.010010
+  Late Importance Difference: 0.001636
+  Eigenvalue Ratio (Trained/Random): 0.077272
+
+INTERPRETATION: Pattern ENHANCED by training (difference: 5.172)
