@@ -241,26 +241,16 @@ def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir, erro
     return stats
 
 
-def main(model, model_name, data_loader):
+def main(model, model_name, data_loader, data_type='train'):
     start_time = time.time()
     
-    # Let user choose between train and test data
-    print("\nChoose data for Fisher Information analysis:")
-    print("1. Train data")
-    print("2. Test data")
-    
-    while True:
-        choice = input("Enter choice (1 or 2): ").strip()
-        if choice == '1':
-            data_for_analysis = data_loader.get_train_loader()
-            data_type = 'train'
-            break
-        elif choice == '2':
-            data_for_analysis = data_loader.get_test_loader()
-            data_type = 'test'
-            break
-        else:
-            print("Invalid choice. Please enter 1 or 2.")
+    # Use the specified data type
+    if data_type == 'train':
+        data_for_analysis = data_loader.get_train_loader()
+    elif data_type == 'test':
+        data_for_analysis = data_loader.get_test_loader()
+    else:
+        raise ValueError(f"Invalid data_type: {data_type}. Must be 'train' or 'test'.")
     
     print(f"Using {data_type} data for Fisher Information analysis.")
     
@@ -317,13 +307,53 @@ def main(model, model_name, data_loader):
 if __name__ == "__main__":
     import os
     import sys
+    import argparse
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     
-    # Use the interactive model loader
-    from utils.model_loader import load_model_interactive
+    from utils.model_loader import load_model_interactive, load_model_from_trainer
     
-    # Let the user choose which model to analyze
-    model, model_name, data_loader = load_model_interactive()
+    def get_available_models():
+        """Get list of available trained models from trainers/outputs directory"""
+        outputs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'trainers', 'outputs')
+        models = []
+        if os.path.exists(outputs_dir):
+            for item in os.listdir(outputs_dir):
+                item_path = os.path.join(outputs_dir, item)
+                if os.path.isdir(item_path):
+                    checkpoints_dir = os.path.join(item_path, 'checkpoints')
+                    if os.path.exists(checkpoints_dir) and os.listdir(checkpoints_dir):
+                        models.append(item)
+        return sorted(models)
+    
+    # Add CLI support
+    parser = argparse.ArgumentParser(description='Compute Fisher Information Matrix using RSVD')
+    parser.add_argument('--model', type=str, help='Model name to analyze')
+    parser.add_argument('--data-type', type=str, choices=['train', 'test'], default='train',
+                        help='Data type to use for Fisher computation (default: train)')
+    parser.add_argument('--list-models', action='store_true', help='List available models')
+    
+    args = parser.parse_args()
+    
+    if args.list_models:
+        available_models = get_available_models()
+        print("Available trained models:")
+        for i, model_name in enumerate(available_models):
+            print(f"[{i}] {model_name}")
+        sys.exit(0)
+    
+    if args.model:
+        # Load model by name
+        try:
+            trainer_module_path = f"trainers.specific_trainers.{args.model}"
+            model, model_name, data_loader = load_model_from_trainer(trainer_module_path)
+            print(f"Loaded model: {model_name}")
+        except Exception as e:
+            print(f"Error loading model {args.model}: {e}")
+            print("Use --list-models to see available models")
+            sys.exit(1)
+    else:
+        # Use interactive mode
+        model, model_name, data_loader = load_model_interactive()
     
     # Run the main function with the selected model
-    main(model, model_name, data_loader) 
+    main(model, model_name, data_loader, args.data_type if args.model else 'train') 
