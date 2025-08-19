@@ -22,6 +22,7 @@ workplan.txt
 *.egg
 *.npy
 *.npz
+data/
 # PyTorch model checkpoints - ignore all checkpoints
 trainers/outputs/*/checkpoints/*.pt
 
