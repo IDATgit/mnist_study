@@ -8,7 +8,7 @@ Let's consider a neural network classifier with:
 
 The data can be represented in matrix form as:
 $$X \in \mathbb{R}^{n \times d}$$
-$$Y \in \mathbb{R}^{n \times 1}$$
+$$Y \in \mathbb{R}^{n \times c}$$
 
 where:
 - n: number of training samples 
@@ -50,7 +50,7 @@ where:
 - $p(y|x_i,\theta)$ represents the neural network's predicted probability distribution over classes for input $x_i$
 
 
-The Fisher Information Matrix size is $$m^2$$, which means for a model with just 1 million parameters (relatively small by today's standards), the matrix would be of size $$10^{12}$$ (1 trillion) elements.
+The Fisher Information Matrix size is $m^2$, which means for a model with just 1 million parameters (relatively small by today's standards), the matrix would be of size $10^{12}$ (1 trillion) elements.
 thus, for pratcital computation, an approximation is required
 ## RSVD finite sample approximation
 RSVD is a method from randomized linear algebra, which computes a low rank approximation of a matrix.
@@ -158,6 +158,23 @@ optional:
 
 
 ## Experiments
+### MNIST dataset, Small Convnet ~ 7K parameters
+the purpose of this experiment is the following:  
+1. verify that full computation matches the RSVD approxmation.
+2. get sense of the empirical runtime and memory requirements.
+
 using a small convnet architecture with ~7k parameters we compute both the full fisher information matrix, and the rsvd approximation.  
-eigenvalues of both methods:
+
+
+
+The cumulative eigenvalue energy plot shows how much of the total spectral energy is captured by the first k components:
+
+![Eigenvalue Cumulative Sum](../model_interpretation/outputs/fisher_analysis/small_convnet_10k/small_convnet_10k_eigenvalue_cumsum.png)
+
+
+The following plot shows the eigenvalue comparison between the full computation and RSVD approximation:
+![Eigenvalue Comparison](../model_interpretation/outputs/fisher_analysis/small_convnet_10k/small_convnet_10k_eigenvalue_comparison_1k.png)
+
+
+
 
