@@ -79,42 +79,43 @@ For the finite sample Fisher matrix approximation, we can apply RSVD as follows:
 1. Generate a random Gaussian matrix $\Omega \in \mathbb{R}^{m \times k}$ where $m$ is the number of parameters and $k$ is the target rank:
    $$\Omega \sim \mathcal{N}(0,1)^{m \times k}$$
 
-2. Project the Fisher matrix onto $\Omega$. Using the finite sample approximation:
-```math
-Y = F\Omega = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T\Omega
-```  
+2. Project the Fisher matrix onto $\Omega$. Using the finite sample approximation:  
+   ```math
+   Y = F\Omega = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T\Omega
+   ```
    Note that we never explicitly form the full Fisher matrix, instead we only have $m \times k$ projected matrix. 
 
    
 
-3. Compute QR decomposition of $Y$: 
-   ```math 
-   Y = QR  
-   ```
-   where $Q \in \mathbb{R}^{m \times k}$ has orthonormal columns  
-   $Q$ is a range approximation of $F$.
+3. Compute QR decomposition of $Y$:  
+   
+   $Y = QR$  
+   
+   where $Q \in \mathbb{R}^{m \times k}$ has orthonormal columns and $Q$ is a range approximation of $F$.
 
 4. Project the Fisher matrix onto $Q$:  
-   ```math 
-   B = Q^* F
-   ```
+   
+   $B = Q^* F$
+   
    using the finite sample form without explicitly constructing $F$:  
-   ```math
-   B = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) Q^*\nabla_\theta \log p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T
-   ```
+   
+   $B = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) Q^*\nabla_\theta \log p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T$
+   
    we are left with only an $m \times k$ matrix. 
 
 5. Compute SVD of the small matrix $B$:
-   $$B = \hat{U}\Sigma\hat{V}^T$$
+   
+   $B = \hat{U}\Sigma\hat{V}^T$
 
 6. Recover the left singular vectors:
-   $$U = Q\hat{U}$$
+   
+   $U = Q\hat{U}$
 
-7. additional trick: eigenvalue tail power estimation for almost free:
-the sum of eigenvalues of the full FIM is just the trace of F. which can be computed very easily during one of the fisher information projection stages:  
-   ```math
-   S = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T\nabla_\theta \log p(y=c|x_i,\theta)
-   ```
+7. Additional trick: eigenvalue tail power estimation for almost free:
+   
+   The sum of eigenvalues of the full FIM is just the trace of $F$, which can be computed very easily during one of the fisher information projection stages:  
+   
+   $S = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T\nabla_\theta \log p(y=c|x_i,\theta)$
 
 The resulting approximation is $F \approx U\Sigma U^T$ (since $F$ is symmetric, $V=U$)  
 lets evaluate the performance of each step:
