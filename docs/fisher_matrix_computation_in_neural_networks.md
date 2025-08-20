@@ -20,7 +20,9 @@ where $\theta \in \mathbb{R}^m$ represents the learnable parameters of the neura
 we are interseted in estimating the fisher information matrix of such classifer.
 The Fisher Information Matrix (FIM) is defined as:
 
-$$F(\theta) = \mathbb{E}_{x \sim p_{data}(x)} \mathbb{E}_{y \sim p(y|x,\theta)} \left[ \nabla_\theta \log p(y|x,\theta) \nabla_\theta \log p(y|x,\theta)^T \right]$$
+$$
+F(\theta) = \mathbb{E}_{x \sim p_{data}(x)} \mathbb{E}_{y \sim p(y|x,\theta)} \left[ \nabla_\theta \log p(y|x,\theta) \nabla_\theta \log p(y|x,\theta)^T \right]
+$$
 
 where:
 - $\theta$ represents the parameters of the neural network
@@ -71,7 +73,9 @@ For the finite sample Fisher matrix approximation, we can apply RSVD as follows:
    $$\Omega \sim \mathcal{N}(0,1)^{m \times k}$$
 
 2. Project the Fisher matrix onto $\Omega$. Using the finite sample approximation:  
-   $$Y = F\Omega = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T\Omega$$  
+   $$
+   Y = F\Omega = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T\Omega
+   $$  
 
    Note that we never explicitly form the full Fisher matrix, instead we only have $m \times k$ projected matrix. 
 
@@ -85,7 +89,9 @@ For the finite sample Fisher matrix approximation, we can apply RSVD as follows:
    $$B = Q^* F$$ 
    
    Again using the finite sample form without explicitly constructing $F$:
-   $$B = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) Q^*\nabla_\theta \log p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T$$  
+   $$
+   B = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) Q^*\nabla_\theta \log p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T
+   $$  
    again, we are left with only an $m \times k$ matrix.
 
 
