@@ -1,8 +1,8 @@
 # Fisher information matrix computation in neural networks classifiers
 ## Setup
 Let's consider a neural network classifier with:
-- Training samples $$ X = \{x_1, ..., x_n\}$$ where $$x_i \in \mathbb{R}^d $$
-- Labels $$ Y = \{y_1, ..., y_n\}$$ where $$y_i \in \mathbb{R}^c $$
+- Training samples $X = \{x_1, ..., x_n\}$ where $x_i \in \mathbb{R}^d$
+- Labels $Y = \{y_1, ..., y_n\}$ where $y_i \in \mathbb{R}^c$
 
 The data can be represented in matrix form as:
 $$X \in \mathbb{R}^{n \times d}$$
@@ -13,9 +13,9 @@ where:
 - d: input dimension
 - c: number of classes (with one-hot encoding)
 
-The neural network defines a mapping $$f_\theta: \mathbb{R}^d \rightarrow \mathbb{R}^c$$ that produces class probabilities:
+The neural network defines a mapping $f_\theta: \mathbb{R}^d \rightarrow \mathbb{R}^c$ that produces class probabilities:
 $$p(y|x,\theta) = f_\theta(x)$$  
-where $$\theta \in \mathbb{R}^m$$ represents the learnable parameters of the neural network (weights and biases)
+where $\theta \in \mathbb{R}^m$ represents the learnable parameters of the neural network (weights and biases)
 
 we are interseted in estimating the fisher information matrix of such classifer.
 The Fisher Information Matrix (FIM) is defined as:
@@ -23,10 +23,10 @@ The Fisher Information Matrix (FIM) is defined as:
 $$F(\theta) = \mathbb{E}_{x \sim p_{data}(x)} \mathbb{E}_{y \sim p(y|x,\theta)} \left[ \nabla_\theta \log p(y|x,\theta) \nabla_\theta \log p(y|x,\theta)^T \right]$$
 
 where:
-- $$\theta$$ represents the parameters of the neural network
-- $$p_{data}(x)$$ is the data distribution
-- $$p(y|x,\theta)$$ is the model's predicted probability distribution over classes
-- $$\nabla_\theta \log p(y|x,\theta)$$ is the gradient of the log-likelihood with respect to parameters
+- $\theta$ represents the parameters of the neural network
+- $p_{data}(x)$ is the data distribution
+- $p(y|x,\theta)$ is the model's predicted probability distribution over classes
+- $\nabla_\theta \log p(y|x,\theta)$ is the gradient of the log-likelihood with respect to parameters
 
 This matrix captures the local geometry of the parameter space and measures how sensitive the model's predictions are to small changes in parameters.
 
@@ -36,9 +36,9 @@ In practice, we approximate the Fisher Information Matrix using a finite sample 
 $$F(\theta) \approx \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T$$
 
 where:
-- $$N$$ is the number of samples used for estimation
-- $$x_i$$ are samples from the dataset (training / test split)
-- $$p(y|x_i,\theta)$$ represents the neural network's predicted probability distribution over classes for input $$x_i$$
+- $N$ is the number of samples used for estimation
+- $x_i$ are samples from the dataset (training / test split)
+- $p(y|x_i,\theta)$ represents the neural network's predicted probability distribution over classes for input $x_i$
 
 
 The Fisher Information Matrix size is $$m^2$$, which means for a model with just 1 million parameters (relatively small by today's standards), the matrix would be of size $$10^{12}$$ (1 trillion) elements.
@@ -50,7 +50,7 @@ https://tropp.caltech.edu/papers/HMT11-Finding-Structure.pdf
 
 **Prototype for Randomized SVD**
 
-Given an $$m \times n$$ matrix $$A$$, a target number $$k$$ of singular vectors, and an exponent $$q$$ (say, $$q = 1$$ or $$q = 2$$), this procedure computes an approximate rank-$$2k$$ factorization $$U\Sigma V^*$$, where $$U$$ and $$V$$ are orthonormal, and $$\Sigma$$ is nonnegative and diagonal.
+Given an $m \times n$ matrix $A$, a target number $k$ of singular vectors, and an exponent $q$ (say, $q = 1$ or $q = 2$), this procedure computes an approximate rank-$k$ factorization $U\Sigma V^*$, where $U$ and $V$ are orthonormal, and $\Sigma$ is nonnegative and diagonal.
 
 ### Stage A:
 1. Generate an $$n \times 2k$$ Gaussian test matrix $$\Omega$$.
