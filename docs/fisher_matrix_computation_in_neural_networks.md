@@ -56,11 +56,11 @@ https://tropp.caltech.edu/papers/HMT11-Finding-Structure.pdf
 
 **Prototype for Randomized SVD**
 
-Given an $m \times n$ matrix $A$, a target number $k$ of singular vectors, and an exponent $q$ (say, $q = 1$ or $q = 2$), this procedure computes an approximate rank-$k$ factorization $U\Sigma V^*$, where $U$ and $V$ are orthonormal, and $\Sigma$ is nonnegative and diagonal.
+Given an $m \times n$ matrix $A$, a target number $k$ of singular vectors, and an exponent $q$ (say, $q = 1$ or $q = 2$), this procedure computes an approximate rank $k$ factorization $U\Sigma V^*$, where $U$ and $V$ are orthonormal, and $\Sigma$ is nonnegative and diagonal.
 
 ### Stage A:
 1. Generate an $n \times 2k$ Gaussian test matrix $\Omega$.
-2. Form $Y = (AA^*)^q A\Omega$ by multiplying alternately with $A$ and $A^*$.
+2. Form $Y = (AA^* )^q A\Omega$ by multiplying alternately with $A$ and $A^* $.
 3. Construct a matrix $Q$ whose columns form an orthonormal basis for the range of $Y$.
 
 ### Stage B:
