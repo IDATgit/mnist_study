@@ -1,23 +1,24 @@
-# Fisher information matrix computation in neural networks classifiers
+# Fisher information matrix computation in a neural network classifier
 
 
 ## Setup
 Let's consider a neural network classifier with:
 - Training samples $X = \{x_1, ..., x_n\}$ where $x_i \in \mathbb{R}^d$
-- Labels $Y = \{y_1, ..., y_n\}$ where $y_i \in \mathbb{R}^c$
+- Labels $Y = \{y_1, ..., y_n\}$ where $y_i \in {1, 2, ... c}$
 
 The data can be represented in matrix form as:
 $$X \in \mathbb{R}^{n \times d}$$
-$$Y \in \mathbb{R}^{n \times c}$$
+$$Y \in \mathbb{R}^{n \times 1}$$
 
 where:
 - n: number of training samples 
 - d: input dimension
-- c: number of classes (with one-hot encoding)
+- c: number of classes 
 
 The neural network defines a mapping $f_\theta: \mathbb{R}^d \rightarrow \mathbb{R}^c$ that produces class probabilities:
 $$p(y|x,\theta) = f_\theta(x)$$  
-where $\theta \in \mathbb{R}^m$ represents the learnable parameters of the neural network (weights and biases)
+where $\theta \in \mathbb{R}^m$ represents the learnable parameters of the neural network (weights and biases)  
+where $ m $ is the number of parameters of the network.
 
 we are interseted in estimating the fisher information matrix of such classifer.
 The Fisher Information Matrix (FIM) is defined as:
@@ -33,6 +34,8 @@ where:
 - $\nabla_\theta \log p(y|x,\theta)$ is the gradient of the log-likelihood with respect to parameters
 
 This matrix captures the local geometry of the parameter space and measures how sensitive the model's predictions are to small changes in parameters.
+our end goal is to emprically show that the eigenvalues of this matrix are decaying rapidally for 'good models' i.e models that generalizes well. 
+the interpertation of such fisher information behaviour is a large volume in parameter space of modles which are close in the KL divergence sense to the true model (assuming we are computing the fisher information matrix with the correct distribution generating parameters).
 
 ### Finite Sample approximation
 In practice, we approximate the Fisher Information Matrix using a finite sample of data points:
@@ -59,7 +62,7 @@ https://tropp.caltech.edu/papers/HMT11-Finding-Structure.pdf
 Given an $m \times n$ matrix $A$, a target number $k$ of singular vectors, and an exponent $q$ (say, $q = 1$ or $q = 2$), this procedure computes an approximate rank $k$ factorization $U\Sigma V^*$, where $U$ and $V$ are orthonormal, and $\Sigma$ is nonnegative and diagonal.
 
 ### Stage A:
-1. Generate an $n \times 2k$ Gaussian test matrix $\Omega$.
+1. Generate an $n \times k$ Gaussian test matrix $\Omega$.
 2. Form $Y = (AA^* )^q A\Omega$ by multiplying alternately with $A$ and $A^* $.
 3. Construct a matrix $Q$ whose columns form an orthonormal basis for the range of $Y$.
 
@@ -76,38 +79,42 @@ For the finite sample Fisher matrix approximation, we can apply RSVD as follows:
 1. Generate a random Gaussian matrix $\Omega \in \mathbb{R}^{m \times k}$ where $m$ is the number of parameters and $k$ is the target rank:
    $$\Omega \sim \mathcal{N}(0,1)^{m \times k}$$
 
-2. Project the Fisher matrix onto $\Omega$. Using the finite sample approximation: 
-
-```math
-Y = F\Omega = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T\Omega
-```  
-
-Note that we never explicitly form the full Fisher matrix, instead we only have $m \times k$ projected matrix. 
+2. Project the Fisher matrix onto $\Omega$. Using the finite sample approximation:
+   ```math
+   Y = F\Omega = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T\Omega
+   ```  
+   Note that we never explicitly form the full Fisher matrix, instead we only have $m \times k$ projected matrix. 
 
    
 
-3. Compute QR decomposition of $Y$:  
-   $$Y = QR$$ where $Q \in \mathbb{R}^{m \times k}$ has orthonormal columns  
-   this $Q$ is a range approximation of $F$.
+3. Compute QR decomposition of $Y$: 
+   ```math 
+   Y = QR  
+   ```
+   where $Q \in \mathbb{R}^{m \times k}$ has orthonormal columns  
+   $Q$ is a range approximation of $F$.
 
 4. Project the Fisher matrix onto $Q$:  
-   $$B = Q^* F$$ 
-   
-Again using the finite sample form without explicitly constructing $F$:  
-
-```math
-B = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) Q^*\nabla_\theta \log p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T
-```  
- 
-again, we are left with only an $m \times k$ matrix.
-
-
+   ```math 
+   B = Q^* F
+   ```
+   using the finite sample form without explicitly constructing $F$:  
+   ```math
+   B = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) Q^*\nabla_\theta \log p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T
+   ```
+   we are left with only an $m \times k$ matrix. 
 
 5. Compute SVD of the small matrix $B$:
    $$B = \hat{U}\Sigma\hat{V}^T$$
 
 6. Recover the left singular vectors:
    $$U = Q\hat{U}$$
+
+7. additional trick: eigenvalue tail power estimation for almost free:
+the sum of eigenvalues of the full FIM is just the trace of F. which can be computed very easily during one of the fisher information projection stages:  
+   ```math
+   S = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T\nabla_\theta \log p(y=c|x_i,\theta)
+   ```
 
 The resulting approximation is $F \approx U\Sigma U^T$ (since $F$ is symmetric, $V=U$)  
 lets evaluate the performance of each step:
@@ -120,12 +127,13 @@ lets evaluate the performance of each step:
 2. Project Fisher matrix onto $\Omega$ to get $Y = F\Omega$
    - Computation: $O(NC(O(\text{gradient}) + mk))$
    - Memory: $O(mk)$ - only store the projected matrix $Y$
-   - Easily parallelizable: Yes, both over samples and over columns of $\Omega$ 
+   - Easily parallelizable: Yes, both over samples and over columns of $\Omega$  
+   gradient computation can be both duplicated (recalculated on each GPU) or pre-computed this is a memory - compute tradeoff. 
    
 3. QR decomposition of $Y$ to get $Q$
    - Computation: $O(2mk^2)$
    - Memory: $O(mk)$ to store $Q$
-   - Parallelization: Limited
+   - Parallelization: Limited, potential bottleneck. from my experince not significant computation-wise when fully stored on GPU, need to test what happens when its not the case (mxk larger than GPU RAM).
    
 4. Project Fisher onto $Q$ to get $B$
    - Computation: $O(NC(O(\text{gradient}) + mk))$ (similar to step 2)
@@ -136,7 +144,7 @@ lets evaluate the performance of each step:
 5. SVD of small matrix $B$
    - Computation: $O(4mk^2)$ for full SVD of $k \times k$ matrix
    - Memory: $O(k^2)$ for matrices
-   - Parallelization: Limited
+   - Parallelization: Limited, potential bottleneck. from my experince not significant computation-wise when fully stored on GPU, need to test what happens when its not the case (mxk larger than GPU RAM).
 
 optional:
 
@@ -144,7 +152,6 @@ optional:
    - Computation: $O(mk^2)$
    - Memory: $O(mk)$ for final $U$ matrix
    - Easily parallelizable: Yes, matrix multiplication can be parallelized
-
 
 
 
