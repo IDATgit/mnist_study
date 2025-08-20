@@ -80,9 +80,9 @@ For the finite sample Fisher matrix approximation, we can apply RSVD as follows:
    $$\Omega \sim \mathcal{N}(0,1)^{m \times k}$$
 
 2. Project the Fisher matrix onto $\Omega$. Using the finite sample approximation:  
-   ```math
-   Y = F\Omega = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T\Omega
-   ```
+
+   $Y = F\Omega = \frac{1}{N} \sum_{i=1}^N \sum_{c=1}^C p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta) \nabla_\theta \log p(y=c|x_i,\theta)^T\Omega$ 
+   
    Note that we never explicitly form the full Fisher matrix, instead we only have $m \times k$ projected matrix. 
 
    
