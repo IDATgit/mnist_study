@@ -74,6 +74,7 @@ def apply_fisher_to_matrix(model, data_loader, Q, device, side='right', compute_
                     # Compute trace contribution (sum of squared gradients)
                     if compute_trace:
                         fisher_trace += prob * (grad.T @ grad).item()
+                        a = 1
                     
                     if side == 'right':
                         proj = grad.T @ Q # grad @ Q => (1, n) @ (n, k) => (1, k) where n is params, k is projection dim
@@ -97,57 +98,6 @@ def apply_fisher_to_matrix(model, data_loader, Q, device, side='right', compute_
         return fisher_info_projection, error
 
 
-def compute_fisher_trace(model, data_loader, device):
-    """
-    Compute the trace of the Fisher Information Matrix.
-    
-    Args:
-        model: The PyTorch model
-        data_loader: Data loader for the dataset
-        device: Device to use for computation
-        
-    Returns:
-        trace: The trace of the Fisher Information Matrix (sum of diagonal elements)
-    """
-    model.train()  # Set to training mode for gradient computation
-    num_params = sum(p.numel() for p in model.parameters())
-    
-    fisher_trace = 0.0
-    total_samples = 0
-    
-    # Process batches
-    for batch_idx, (data, _) in enumerate(tqdm(data_loader, desc="Computing Fisher Information Matrix trace")):
-        batch_size = data.size(0)
-        total_samples += batch_size
-        data = data.to(device)
-        
-        # Forward pass
-        outputs = model(data)
-        probs = torch.softmax(outputs, dim=1)
-        log_probs = torch.log(probs)
-        
-        # Process each sample in the batch
-        for i in range(data.size(0)):
-            # Compute gradients for each class
-            for j in range(probs.size(1)):
-                # Get score for this sample and class
-                score = log_probs[i, j].clone()
-                prob = probs[i, j].item()  # Get scalar value
-                
-                # Compute gradient with respect to parameters
-                model.zero_grad()
-                score.backward(retain_graph=True)
-                
-                # Get flattened gradient and detach
-                grad = torch.cat([p.grad.detach().view(-1) for p in model.parameters()])
-                
-                # Add trace contribution (sum of squared gradients)
-                if prob > 0:
-                    fisher_trace += prob * (grad @ grad).item()
-    
-    # Average over total samples
-    fisher_trace /= total_samples
-    return fisher_trace
 
 
 def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1, save_intermediates=True, cache_dir="rsvd_cache"):
@@ -179,25 +129,6 @@ def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1, save_interm
         cache_path = Path(cache_dir)
         cache_path.mkdir(parents=True, exist_ok=True)
         print(f"Intermediate results will be saved to: {cache_path}")
-    
-    # Compute Fisher Information Matrix trace
-    trace_start = time.time()
-    trace_file = cache_path / "fisher_trace.npy" if save_intermediates else None
-    if save_intermediates and trace_file.exists():
-        print("Loading existing Fisher trace")
-        fisher_trace = np.load(trace_file).item()
-        timings['trace_computation'] = 0.0  # Loaded from cache
-    else:
-        print("Computing Fisher Information Matrix trace...")
-        fisher_trace = compute_fisher_trace(model, data_loader, device)
-        if save_intermediates:
-            np.save(trace_file, np.array(fisher_trace))
-            print(f"Saved Fisher trace to {trace_file}")
-        timings['trace_computation'] = time.time() - trace_start
-    
-    print(f"Fisher Information Matrix trace: {fisher_trace:.6f}")
-    if timings['trace_computation'] > 0:
-        print(f"Trace computation took: {timings['trace_computation']:.2f} seconds")
     
     # Step 1: Generate a random matrix X ∈ ℝⁿᵏ
     step1_start = time.time()
@@ -276,25 +207,30 @@ def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1, save_interm
     step4_start = time.time()
     B_file = cache_path / "B_matrix.npy" if save_intermediates else None
     error_file = cache_path / "B_error.npy" if save_intermediates else None
-    
+    fisher_trace_file = cache_path / "fisher_trace.npy" if save_intermediates else None
     if save_intermediates and B_file.exists() and error_file.exists():
         print("Step 4: Loading existing B matrix and error")
         B = torch.from_numpy(np.load(B_file)).to(device)
+        fisher_trace = np.load(fisher_trace_file).item()
         error = np.load(error_file).item()
         timings['step4_projection'] = 0.0  # Loaded from cache
     else:
         print("Step 4: project into estimated Q range")
-        B, error = apply_fisher_to_matrix(model, data_loader, Q, device, side='left')
+        B, error, fisher_trace = apply_fisher_to_matrix(model, data_loader, Q, device, side='left', compute_trace=True)
         if save_intermediates:
             np.save(B_file, B.cpu().numpy())
             np.save(error_file, np.array(error.cpu().numpy()))
+            np.save(fisher_trace_file, np.array(fisher_trace))
             print(f"Saved B to {B_file}")
             print(f"Saved error to {error_file} (will also be saved in final statistics)")
+            print(f"Saved fisher trace to {fisher_trace_file}")
         timings['step4_projection'] = time.time() - step4_start
     
     print("Error term = ", error)
     if timings['step4_projection'] > 0:
         print(f"Projection step took: {timings['step4_projection']:.2f} seconds")
+    
+    print("Fisher trace = ", fisher_trace)
     
     # Step 5: Calculate the SVD X = VΣU*
     step5_start = time.time()
@@ -327,7 +263,8 @@ def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1, save_interm
     # Step 6: Set U = QÛ
     step6_start = time.time()
     U_final_file = cache_path / "U_final.npy" if save_intermediates else None
-    
+    print("B eigenvalues sum = ", S.sum())
+
     if save_intermediates and U_final_file.exists():
         print("Step 6: Loading existing final eigenvectors U")
         U = torch.from_numpy(np.load(U_final_file)).to(device)
