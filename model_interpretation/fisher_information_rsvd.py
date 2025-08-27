@@ -40,7 +40,7 @@ def apply_fisher_to_matrix(model, data_loader, Q, device, side='right', compute_
     fisher_trace = 0.0 if compute_trace else None
     # Keep track of samples processed
     total_samples = 0
-    
+    nans_counter = 0
     # Process batches
     for batch_idx, (data, _) in enumerate(tqdm(data_loader, desc="Computing fisher information matrix projection")):
         batch_size = data.size(0)
@@ -71,6 +71,12 @@ def apply_fisher_to_matrix(model, data_loader, Q, device, side='right', compute_
 
                 # Add outer product to Fisher Information Matrix
                 if prob > 0:
+                    if torch.isnan(torch.tensor(prob)) or torch.isnan(grad).any():
+                        nans_counter += 1
+                        continue
+                        
+                
+                        a = 1
                     # Compute trace contribution (sum of squared gradients)
                     if compute_trace:
                         fisher_trace += prob * (grad.T @ grad).item()
@@ -87,7 +93,9 @@ def apply_fisher_to_matrix(model, data_loader, Q, device, side='right', compute_
 
                     
 
-                
+    # Print number of samples with NaNs and number of classes (output shape)
+    num_outputs = list(model.modules())[-1].out_features
+    print(f"Number of samples with nans: {nans_counter} / {total_samples * num_outputs}")
     # Average over total samples
     fisher_info_projection /= total_samples
     error = error / total_samples
