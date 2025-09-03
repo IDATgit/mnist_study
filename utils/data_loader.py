@@ -262,7 +262,8 @@ class CIFAR10DataLoader:
         random_data = torch.randint(0, 256, dataset.data.shape, dtype=torch.uint8)
         
         print(f"Replacing {len(dataset.data)} real images with random uniform noise...")
-        dataset.data = random_data
+        # Convert tensor back to numpy array for CIFAR-10 dataset compatibility
+        dataset.data = random_data.numpy()
 
     def _preload_to_gpu(self, dataset):
         """

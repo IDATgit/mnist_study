@@ -23,19 +23,19 @@ from utils.data_loader import CIFAR10DataLoader
 model = ReGenInception()
 print("Number of parameters: ", model.get_num_parameters())
 
-# Create a custom data loader
+# Create a custom data loader with random labels
 data_loader = CIFAR10DataLoader(
     batch_size=64,
     preload_gpu=torch.cuda.is_available(),
-    random_labels=False,
-    random_images=False,
+    random_labels=False,  # Enable random labels
+    random_images=True,
     random_seed=42,
-    num_train_samples=10000
+    num_train_samples=100000
 )
 
 
 
-def train_regen_inception():
+def train_regen_inception_random_labels():
     # Initialize the trainer with specific parameters
     trainer = BasicTrainer(
         model=model,
@@ -52,4 +52,4 @@ def train_regen_inception():
     return trainer.get_history()
 
 if __name__ == "__main__":
-    train_regen_inception() 
+    train_regen_inception_random_labels()
