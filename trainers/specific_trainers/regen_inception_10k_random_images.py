@@ -30,7 +30,7 @@ data_loader = CIFAR10DataLoader(
     random_labels=False,  # Enable random labels
     random_images=True,
     random_seed=42,
-    num_train_samples=100000
+    num_train_samples=10000
 )
 
 
