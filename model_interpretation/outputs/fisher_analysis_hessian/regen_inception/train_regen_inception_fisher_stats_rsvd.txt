@@ -1,0 +1,3 @@
+fisher_trace: 0.000769
+num_parameters: 1565306.000000
+num_components_k: 500.000000

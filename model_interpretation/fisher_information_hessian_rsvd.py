@@ -9,6 +9,7 @@ import cupy as cp
 import time
 from tqdm import tqdm
 from torch.autograd.functional import hvp
+from torch.utils.data import Subset, DataLoader
 
 # Add the project root to the path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -421,50 +422,81 @@ def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir, erro
     return stats
 
 
-def main(model, model_name, data_loader):
+def main(model, model_name, data_loader, num_samples=None, data_choice=None, k=None, power_iterations=1, save_intermediates=True, compute_stats=True, cache_dir_root=None):
     start_time = time.time()
     
     # Let user choose between train and test data
-    print("\nChoose data for Fisher Information analysis:")
-    print("1. Train data")
-    print("2. Test data")
-    
-    while True:
-        choice = input("Enter choice (1 or 2): ").strip()
-        if choice == '1':
+    if data_choice is None:
+        print("\nChoose data for Fisher Information analysis:")
+        print("1. Train data")
+        print("2. Test data")
+        
+        while True:
+            choice = input("Enter choice (1 or 2): ").strip()
+            if choice == '1':
+                data_for_analysis = data_loader.get_train_loader()
+                data_type = 'train'
+                break
+            elif choice == '2':
+                data_for_analysis = data_loader.get_test_loader()
+                data_type = 'test'
+                break
+            else:
+                print("Invalid choice. Please enter 1 or 2.")
+    else:
+        if data_choice == 'train':
             data_for_analysis = data_loader.get_train_loader()
             data_type = 'train'
-            break
-        elif choice == '2':
+        elif data_choice == 'test':
             data_for_analysis = data_loader.get_test_loader()
             data_type = 'test'
-            break
         else:
-            print("Invalid choice. Please enter 1 or 2.")
+            raise ValueError("data_choice must be 'train' or 'test'")
     
     print(f"Using {data_type} data for Fisher Information analysis.")
+
+    # Optionally limit number of samples by creating a Subset-backed DataLoader
+    if num_samples is not None:
+        base_dataset = data_for_analysis.dataset
+        limit = min(num_samples, len(base_dataset))
+        subset_indices = list(range(limit))
+        subset = Subset(base_dataset, subset_indices)
+        data_for_analysis = DataLoader(
+            subset,
+            batch_size=data_for_analysis.batch_size,
+            shuffle=False,
+            pin_memory=getattr(data_for_analysis, 'pin_memory', True),
+            num_workers=getattr(data_for_analysis, 'num_workers', 0)
+        )
+        print(f"Limiting RSVD computation to first {limit} {data_type} samples")
     
     # Let user choose k (number of components)
-    print(f"\nModel parameters: {sum(p.numel() for p in model.parameters()):,}")
-    print("Choose the number of components (k) for RSVD:")
-    print("Recommended values:")
-    print("- Small models (<100k params): 100-500")
-    print("- Medium models (100k-1M params): 500-1000")
-    print("- Large models (>1M params): 1000-2000")
-    
-    while True:
-        try:
-            k = int(input("Enter k (number of components): ").strip())
-            if k <= 0:
-                print("k must be a positive integer.")
-                continue
-            num_params = sum(p.numel() for p in model.parameters())
-            if k >= num_params:
-                print(f"k ({k}) must be less than the number of parameters ({num_params}).")
-                continue
-            break
-        except ValueError:
-            print("Please enter a valid integer.")
+    if k is None:
+        print(f"\nModel parameters: {sum(p.numel() for p in model.parameters()):,}")
+        print("Choose the number of components (k) for RSVD:")
+        print("Recommended values:")
+        print("- Small models (<100k params): 100-500")
+        print("- Medium models (100k-1M params): 500-1000")
+        print("- Large models (>1M params): 1000-2000")
+        
+        while True:
+            try:
+                k_val = int(input("Enter k (number of components): ").strip())
+                if k_val <= 0:
+                    print("k must be a positive integer.")
+                    continue
+                num_params = sum(p.numel() for p in model.parameters())
+                if k_val >= num_params:
+                    print(f"k ({k_val}) must be less than the number of parameters ({num_params}).")
+                    continue
+                k = k_val
+                break
+            except ValueError:
+                print("Please enter a valid integer.")
+    else:
+        num_params = sum(p.numel() for p in model.parameters())
+        if k <= 0 or k >= num_params:
+            raise ValueError(f"k must be in (0, {num_params})")
     
     print(f"Using k = {k} components for RSVD.")
     
@@ -483,6 +515,8 @@ def main(model, model_name, data_loader):
     
     # Output directory - use the original model name from training
     output_dir = Path(f'model_interpretation/outputs/fisher_analysis_hessian/{original_model_name}/')
+    # Ensure output directory exists even when skipping analysis/stats
+    output_dir.mkdir(parents=True, exist_ok=True)
     
     print(f"\nAnalyzing {original_model_name} (model type: {model_class_name})...")
     
@@ -492,13 +526,20 @@ def main(model, model_name, data_loader):
     
     # Calculate Fisher Information Matrix using RSVD
     fim_start_time = time.time()
-    power_iterations = 1  # Number of power iterations (fixed)
+    power_iterations = int(power_iterations) if power_iterations is not None else 1
     
     # Create cache directory specific to this model and data type
-    cache_dir = f"model_interpretation/outputs/fisher_analysis_hessian/rsvd_cache/{original_model_name}_{data_type}_k{k}_p{power_iterations}"
+    cache_root = cache_dir_root or "model_interpretation/outputs/fisher_analysis_hessian/rsvd_cache"
+    cache_dir = f"{cache_root}/{original_model_name}_{data_type}_k{k}_p{power_iterations}"
     
-    U, S, V, error, fisher_trace, timings = calculate_fisher_rsvd(model, data_for_analysis, k, power_iterations, 
-                                                                save_intermediates=True, cache_dir=cache_dir)
+    U, S, V, error, fisher_trace, timings = calculate_fisher_rsvd(
+        model,
+        data_for_analysis,
+        k,
+        power_iterations,
+        save_intermediates=bool(save_intermediates),
+        cache_dir=cache_dir
+    )
     fim_end_time = time.time()
     print("Fisher Information Matrix analysis with RSVD completed.")
     total_rsvd_time = fim_end_time - fim_start_time
@@ -507,14 +548,19 @@ def main(model, model_name, data_loader):
     # Add total RSVD time to timings
     timings['total_rsvd_time'] = total_rsvd_time
     
-    # Analyze and save results
-    analysis_start_time = time.time()
-    stats = analyze_fisher_information_rsvd(U, S, V, model, original_model_name, output_dir, error, fisher_trace, timings, data_type)
-    analysis_end_time = time.time()
-    
-    # Add analysis time to stats
-    analysis_time = analysis_end_time - analysis_start_time
-    stats['timing_analysis'] = analysis_time
+    # Analyze and save results (optional)
+    if compute_stats:
+        analysis_start_time = time.time()
+        stats = analyze_fisher_information_rsvd(U, S, V, model, original_model_name, output_dir, error, fisher_trace, timings, data_type)
+        analysis_end_time = time.time()
+        analysis_time = analysis_end_time - analysis_start_time
+        stats['timing_analysis'] = analysis_time
+    else:
+        stats = {
+            'fisher_trace': float(fisher_trace) if fisher_trace is not None else 0.0,
+            'num_parameters': num_params,
+            'num_components_k': len(S)
+        }
     
     # Re-save statistics with updated timing information
     with open(output_dir / f'{data_type}_{original_model_name}_fisher_stats_rsvd.txt', 'w') as f:
@@ -524,15 +570,17 @@ def main(model, model_name, data_loader):
     # Print summary statistics
     print(f"\nFisher Information Analysis for {original_model_name} (RSVD) - {data_type.title()} Data:")
     print(f"Fisher trace (exact): {stats['fisher_trace']:.6f}")
-    print(f"RSVD trace approximation: {stats['rsvd_trace_approximation']:.6f}")
-    print(f"Trace approximation ratio: {stats['trace_approximation_ratio']:.4f}" if stats['fisher_trace'] > 0 else "Trace approximation ratio: N/A")
-    print(f"Max eigenvalue: {stats['max_eigenvalue']:.6f}")
-    print(f"Min eigenvalue: {stats['min_eigenvalue']:.6f}")
-    print(f"Condition number: {stats['condition_number']:.6f}")
-    print(f"Effective rank: {stats['effective_rank']:.6f}")
+    if compute_stats:
+        print(f"RSVD trace approximation: {stats['rsvd_trace_approximation']:.6f}")
+        print(f"Trace approximation ratio: {stats['trace_approximation_ratio']:.4f}" if stats['fisher_trace'] > 0 else "Trace approximation ratio: N/A")
+        print(f"Max eigenvalue: {stats['max_eigenvalue']:.6f}")
+        print(f"Min eigenvalue: {stats['min_eigenvalue']:.6f}")
+        print(f"Condition number: {stats['condition_number']:.6f}")
+        print(f"Effective rank: {stats['effective_rank']:.6f}")
     print(f"Number of components (k): {stats['num_components_k']}")
     print(f"Number of parameters: {stats['num_parameters']}")
-    print(f"RSVD error bound: {stats['rsvd_error_bound']:.6f}")
+    if compute_stats:
+        print(f"RSVD error bound: {stats['rsvd_error_bound']:.6f}")
     
     # Print timing information
     total_time = time.time() - start_time
@@ -544,7 +592,8 @@ def main(model, model_name, data_loader):
     print(f"Step 4 (projection): {stats.get('timing_step4_projection', 0.0):.2f} seconds")
     print(f"Step 5 (SVD): {stats.get('timing_step5_svd', 0.0):.2f} seconds")
     print(f"Step 6 (final eigenvectors): {stats.get('timing_step6_final_eigenvectors', 0.0):.2f} seconds")
-    print(f"Analysis and plotting: {stats.get('timing_analysis', 0.0):.2f} seconds")
+    if compute_stats:
+        print(f"Analysis and plotting: {stats.get('timing_analysis', 0.0):.2f} seconds")
     print(f"Total RSVD time: {total_rsvd_time:.2f} seconds")
     print(f"Total execution time: {total_time:.2f} seconds")
 
@@ -554,11 +603,55 @@ if __name__ == "__main__":
     import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     
-    # Use the interactive model loader
-    from utils.model_loader import load_model_interactive
-    
-    # Let the user choose which model to analyze
-    model, model_name, data_loader = load_model_interactive()
-    
-    # Run the main function with the selected model
-    main(model, model_name, data_loader) 
+    import argparse
+    from utils.model_loader import (
+        load_model_interactive,
+        load_model_from_trainer,
+        load_best_model,
+        load_model_at_epoch,
+    )
+
+    parser = argparse.ArgumentParser(description="Fisher Information RSVD Analysis")
+    # Model loading options
+    parser.add_argument("--trainer", type=str, default=None, help="Trainer module path, e.g., trainers.specific_trainers.regen_inception")
+    parser.add_argument("--checkpoint", type=str, choices=["latest", "best", "epoch"], default="latest", help="Checkpoint selection")
+    parser.add_argument("--epoch", type=int, default=None, help="Epoch number if --checkpoint epoch is used")
+    parser.add_argument("--device", type=str, default=None, help="cuda or cpu; defaults to auto")
+    # Analysis options
+    parser.add_argument("--data", type=str, choices=["train", "test"], default=None, help="Data split to use")
+    parser.add_argument("--k", type=int, default=None, help="Number of RSVD components")
+    parser.add_argument("--num-samples", type=int, default=None, help="Limit number of samples from the chosen split")
+    parser.add_argument("--power-iters", type=int, default=1, help="Number of power iterations")
+    parser.add_argument("--no-save-intermediates", action="store_true", help="Disable saving intermediate matrices to cache")
+    parser.add_argument("--cache-dir", type=str, default=None, help="Root cache directory for intermediates")
+    parser.add_argument("--no-stats", action="store_true", help="Skip statistics/plots saving phase")
+
+    args = parser.parse_args()
+
+    # Load model
+    if args.trainer:
+        if args.checkpoint == "latest":
+            model, model_name, data_loader = load_model_from_trainer(args.trainer, "model_latest.pt", device=args.device)
+        elif args.checkpoint == "best":
+            model, model_name, data_loader = load_best_model(args.trainer, device=args.device)
+        else:
+            if args.epoch is None:
+                raise ValueError("--epoch is required when --checkpoint epoch is used")
+            model, model_name, data_loader = load_model_at_epoch(args.trainer, args.epoch, device=args.device)
+    else:
+        # Interactive fallback
+        model, model_name, data_loader = load_model_interactive()
+
+    # Run analysis
+    main(
+        model,
+        model_name,
+        data_loader,
+        num_samples=args.num_samples,
+        data_choice=args.data,
+        k=args.k,
+        power_iterations=args.power_iters,
+        save_intermediates=(not args.no_save_intermediates),
+        compute_stats=(not args.no_stats),
+        cache_dir_root=args.cache_dir,
+    )

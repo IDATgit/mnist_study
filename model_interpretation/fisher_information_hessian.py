@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 import cupy as cp
 import time
+from torch.utils.data import Subset, DataLoader
 
 # Add the project root to the path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -44,14 +45,12 @@ def calculate_fisher_information(model, data_loader, enable_diagnostics=True, pr
     if enable_diagnostics:
         # Calculate total number of gradient computations
         total_computations = 0
-        for batch_idx, (data, _) in enumerate(data_loader):
+        for batch_idx, (data, _) in enumerate(16):
             batch_size = data.size(0)
             outputs = model(data.to(device))
             num_classes = outputs.size(1)
             total_computations += batch_size * num_classes
-        
         print(f"Pre-allocating vectors for {total_computations} gradient computations...")
-        
         # Pre-allocate diagnostic vectors
         prob_values = np.zeros(total_computations, dtype=np.float32)
         score_values = np.zeros(total_computations, dtype=np.float32)
@@ -85,11 +84,12 @@ def calculate_fisher_information(model, data_loader, enable_diagnostics=True, pr
         flat_params = torch.cat([p.view(-1) for p in model.parameters()])
         flat_params = flat_params.detach().requires_grad_(True)  # Ensure gradients are tracked
         H = hessian(loss_fn, flat_params)
-        fisher_info.add_(H)        
+        fisher_info.add_(H)
         if (batch_idx + 1) % 10 == 0:
             print(f"Analyzed {(batch_idx + 1) * data.size(0)} samples...")
 
     
+    # Normalize by number of batches
     fisher_info /= len(data_loader)
     
     # Package diagnostic vectors if enabled
@@ -202,7 +202,7 @@ def analyze_fisher_information(fisher_info, diagnostics, model, model_name, outp
     
     return stats
 
-def main(model, model_name, data_loader, enable_diagnostics=True, prob_threshold=None):
+def main(model, model_name, data_loader, enable_diagnostics=True, prob_threshold=None, num_train_samples=None):
     """
     Main function to calculate and analyze Fisher Information Matrix.
     
@@ -212,9 +212,22 @@ def main(model, model_name, data_loader, enable_diagnostics=True, prob_threshold
         data_loader: DataLoader for the dataset
         enable_diagnostics: Whether to collect diagnostic information
         prob_threshold: Optional probability threshold for sample filtering
+        num_train_samples: Optional limit on the number of training samples to use
     """
     start_time = time.time()
     train_loader = data_loader.get_train_loader()
+    if num_train_samples is not None:
+        base_dataset = train_loader.dataset
+        limit = min(num_train_samples, len(base_dataset))
+        subset_indices = list(range(limit))
+        subset = Subset(base_dataset, subset_indices)
+        train_loader = DataLoader(
+            subset,
+            batch_size=train_loader.batch_size,
+            shuffle=False,
+            pin_memory=getattr(train_loader, 'pin_memory', True),
+            num_workers=getattr(train_loader, 'num_workers', 0)
+        )
     # Print model parameters and FIM size
     num_params = sum(p.numel() for p in model.parameters())
     print(f"\nModel parameters: {num_params:,}")
@@ -229,6 +242,8 @@ def main(model, model_name, data_loader, enable_diagnostics=True, prob_threshold
         print("Diagnostics disabled - faster computation")
     if prob_threshold is not None:
         print(f"Using probability threshold: {prob_threshold}")
+    if num_train_samples is not None:
+        print(f"Limiting Fisher/Hessian computation to first {num_train_samples} training samples")
     
     # Move model to GPU if available
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -284,5 +299,12 @@ if __name__ == "__main__":
     prob_thresh = input("Enter probability threshold (or press Enter for none): ").strip()
     prob_threshold = float(prob_thresh) if prob_thresh else None
     
+    # Ask for number of training samples to use (optional)
+    num_samples_input = input("Enter number of training samples to use (or press Enter for all): ").strip()
+    num_train_samples = int(num_samples_input) if num_samples_input else None
+    if num_train_samples is not None and num_train_samples <= 0:
+        print("Non-positive sample count provided; using all samples.")
+        num_train_samples = None
+    
     # Run the main function with the selected model
-    main(model, model_name, data_loader, enable_diagnostics, prob_threshold) 
+    main(model, model_name, data_loader, enable_diagnostics, prob_threshold, num_train_samples)

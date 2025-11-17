@@ -134,7 +134,7 @@ def main():
     """
     parser = argparse.ArgumentParser(description='Compare RSVD eigenvalues across multiple models')
     parser.add_argument('--models', nargs='+', 
-                        default=['regen_inception_10k', 'regen_inception_10k_random_labels', 'regen_inception_10k_random_images'],
+                        default=['regen_inception', 'regen_inception_random_labels', 'regen_inception_random_images'],
                         help='List of model names to compare (default: regen_inception_10k variants)')
     parser.add_argument('--split', choices=['train', 'test'], default='train',
                         help='Data split to use (default: train)')
