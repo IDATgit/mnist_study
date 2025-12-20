@@ -15,7 +15,7 @@ from torch.utils.data import Subset, DataLoader
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-def apply_fisher_to_matrix(model, data_loader, Q, device, side='right', compute_trace=False):
+def apply_fisher_to_matrix(model, data_loader, Q, device, side='right', compute_trace=False, use_labels=True):
     """
     Implicitly apply the Fisher Information Matrix to matrix Q.
     
@@ -26,7 +26,8 @@ def apply_fisher_to_matrix(model, data_loader, Q, device, side='right', compute_
         device: Device to use for computation
         side: 'right' or 'left' (left will use Q.T)
         compute_trace: If True, also compute the trace of Fisher Information Matrix
-        
+        use_labels: If True, use the labels to compute the Fisher Information Matrix (NLL between predicted and true labels
+        If False, use the predicted probabilites as true labels for the loss function (NLL between predicted and predicted labels).
     Returns:
         Result of Fisher Information Matrix applied to X, error, and optionally trace
     """
@@ -64,7 +65,14 @@ def apply_fisher_to_matrix(model, data_loader, Q, device, side='right', compute_
             # Run model with functional_call using these params
             from torch.func import functional_call
             outputs = functional_call(model, param_dict, data)
-            return loss_function(outputs, targets)  # scalar (batch-mean)
+            if use_labels:
+                return loss_function(outputs, targets)
+            else:
+                # Technical detail of cross entropy implementation.
+                # the targets should be probabilities of the classes (not raw logits).
+                outputs_target = torch.softmax(outputs, dim=1)
+                return loss_function(outputs, outputs_target)
+
 
         # Flat parameter vector (requires grad for second-order)
         flat_params = torch.cat([p.view(-1) for p in model.parameters()])
@@ -119,7 +127,7 @@ def apply_fisher_to_matrix(model, data_loader, Q, device, side='right', compute_
 
 
 
-def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1, save_intermediates=True, cache_dir="rsvd_cache"):
+def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1, save_intermediates=True, cache_dir="rsvd_cache", use_labels=True):
     """
     Calculate the Fisher Information Matrix using Randomized SVD (RSI algorithm).
     
@@ -130,6 +138,7 @@ def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1, save_interm
         power_iterations: Number of power iterations to enhance accuracy (default: 1)
         save_intermediates: Whether to save intermediate results
         cache_dir: Directory to save intermediate results
+        use_labels: If True, use ground-truth labels; otherwise use predicted probabilities
         
     Returns:
         U, Sigma, V: The SVD components of the approximated Fisher Information Matrix, error, trace, timings
@@ -183,7 +192,7 @@ def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1, save_interm
             # NOTE: this is not the proper way to do it. need  normalization to avoid rounding errors, see algorithm 4.4 at Halko.
             # this is OK for single power itterations (no power iterations)
             # Apply Fisher Information Matrix to X
-            AX, e = apply_fisher_to_matrix(model, data_loader, X, device, side='right')
+            AX, e = apply_fisher_to_matrix(model, data_loader, X, device, side='right', use_labels=use_labels)
             if save_intermediates:
                 np.save(AX_file, AX.cpu().numpy())
                 print(f"Saved AX iteration {i} to {AX_file}")
@@ -235,7 +244,7 @@ def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1, save_interm
         timings['step4_projection'] = 0.0  # Loaded from cache
     else:
         print("Step 4: project into estimated Q range")
-        B, error, fisher_trace = apply_fisher_to_matrix(model, data_loader, Q, device, side='left', compute_trace=True)
+        B, error, fisher_trace = apply_fisher_to_matrix(model, data_loader, Q, device, side='left', compute_trace=True, use_labels=use_labels)
         if save_intermediates:
             np.save(B_file, B.cpu().numpy())
             np.save(error_file, np.array(error.cpu().numpy()))
@@ -422,7 +431,7 @@ def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir, erro
     return stats
 
 
-def main(model, model_name, data_loader, num_samples=None, data_choice=None, k=None, power_iterations=1, save_intermediates=True, compute_stats=True, cache_dir_root=None):
+def main(model, model_name, data_loader, num_samples=None, data_choice=None, k=None, power_iterations=1, save_intermediates=True, compute_stats=True, cache_dir_root=None, use_labels=True):
     start_time = time.time()
     
     # Let user choose between train and test data
@@ -519,6 +528,7 @@ def main(model, model_name, data_loader, num_samples=None, data_choice=None, k=N
     output_dir.mkdir(parents=True, exist_ok=True)
     
     print(f"\nAnalyzing {original_model_name} (model type: {model_class_name})...")
+    print(f"use_labels for loss computation: {use_labels}")
     
     # Move model to GPU if available
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -538,7 +548,8 @@ def main(model, model_name, data_loader, num_samples=None, data_choice=None, k=N
         k,
         power_iterations,
         save_intermediates=bool(save_intermediates),
-        cache_dir=cache_dir
+        cache_dir=cache_dir,
+        use_labels=use_labels
     )
     fim_end_time = time.time()
     print("Fisher Information Matrix analysis with RSVD completed.")
@@ -612,6 +623,9 @@ if __name__ == "__main__":
     )
 
     parser = argparse.ArgumentParser(description="Fisher Information RSVD Analysis")
+    # helper to parse booleans from strings
+    def str2bool(v):
+        return str(v).lower() in ("1", "true", "t", "yes", "y")
     # Model loading options
     parser.add_argument("--trainer", type=str, default=None, help="Trainer module path, e.g., trainers.specific_trainers.regen_inception")
     parser.add_argument("--checkpoint", type=str, choices=["latest", "best", "epoch"], default="latest", help="Checkpoint selection")
@@ -625,6 +639,7 @@ if __name__ == "__main__":
     parser.add_argument("--no-save-intermediates", action="store_true", help="Disable saving intermediate matrices to cache")
     parser.add_argument("--cache-dir", type=str, default=None, help="Root cache directory for intermediates")
     parser.add_argument("--no-stats", action="store_true", help="Skip statistics/plots saving phase")
+    parser.add_argument("--use-labels", type=str2bool, default=True, help="Use ground-truth labels (True) or predicted probabilities (False) for loss")
 
     args = parser.parse_args()
 
@@ -654,4 +669,5 @@ if __name__ == "__main__":
         save_intermediates=(not args.no_save_intermediates),
         compute_stats=(not args.no_stats),
         cache_dir_root=args.cache_dir,
+        use_labels=args.use_labels,
     )
