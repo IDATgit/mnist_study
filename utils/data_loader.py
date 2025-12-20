@@ -54,6 +54,7 @@ class MNISTDataLoader:
             download=True
         )
         self._preprocess_training_set()
+        self._preprocess_test_set()
 
         # Preload to GPU if requested
         if preload_gpu:
@@ -79,6 +80,19 @@ class MNISTDataLoader:
         # Replace images with random noise if requested
         if self.random_images:
             self._replace_with_random_images(self.train_dataset)
+    
+    def _preprocess_test_set(self):
+        """Apply randomization options to the test set as well."""
+        # Randomize labels if requested
+        if self.random_labels:
+            torch.manual_seed(self.random_seed)
+            num_test_samples = len(self.test_dataset.targets)
+            random_targets = torch.randint(0, 10, (num_test_samples,))
+            self.test_dataset.targets = random_targets
+            
+        # Replace images with random noise if requested
+        if self.random_images:
+            self._replace_with_random_images(self.test_dataset)
             
     def _replace_with_random_images(self, dataset):
         """
@@ -221,6 +235,7 @@ class CIFAR10DataLoader:
             download=True
         )
         self._preprocess_training_set()
+        self._preprocess_test_set()
 
         # Preload to GPU if requested
         if preload_gpu:
@@ -246,6 +261,19 @@ class CIFAR10DataLoader:
         # Replace images with random noise if requested
         if self.random_images:
             self._replace_with_random_images(self.train_dataset)
+    
+    def _preprocess_test_set(self):
+        """Apply randomization options to the test set as well."""
+        # Randomize labels if requested
+        if self.random_labels:
+            torch.manual_seed(self.random_seed)
+            num_test_samples = len(self.test_dataset.targets)
+            random_targets = torch.randint(0, 10, (num_test_samples,)).tolist()
+            self.test_dataset.targets = random_targets
+            
+        # Replace images with random noise if requested
+        if self.random_images:
+            self._replace_with_random_images(self.test_dataset)
             
     def _replace_with_random_images(self, dataset):
         """
