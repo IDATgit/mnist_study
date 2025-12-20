@@ -431,7 +431,7 @@ def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir, erro
     return stats
 
 
-def main(model, model_name, data_loader, num_samples=None, data_choice=None, k=None, power_iterations=1, save_intermediates=True, compute_stats=True, cache_dir_root=None, use_labels=True):
+def main(model, model_name, data_loader, num_samples=None, data_choice=None, k=None, power_iterations=1, save_intermediates=True, compute_stats=True, cache_dir_root=None, use_labels=None):
     start_time = time.time()
     
     # Let user choose between train and test data
@@ -479,6 +479,11 @@ def main(model, model_name, data_loader, num_samples=None, data_choice=None, k=N
         )
         print(f"Limiting RSVD computation to first {limit} {data_type} samples")
     
+    # Ask interactively about using labels if not provided via CLI
+    if use_labels is None:
+        ul = input("\nUse ground-truth labels for loss? (y/n, default=y): ").strip().lower()
+        use_labels = (ul != 'n')
+    
     # Let user choose k (number of components)
     if k is None:
         print(f"\nModel parameters: {sum(p.numel() for p in model.parameters()):,}")
@@ -523,7 +528,7 @@ def main(model, model_name, data_loader, num_samples=None, data_choice=None, k=N
     print(f"RSVD matrix (B) size: {num_params} x {k} = {num_params*k:,} elements ({rsvd_bytes:,} bytes)")
     
     # Output directory - use the original model name from training
-    output_dir = Path(f'model_interpretation/outputs/fisher_analysis_hessian/{original_model_name}/')
+    output_dir = Path(f'model_interpretation/outputs/fisher_analysis_hessian/{data_type}_{original_model_name}/')
     # Ensure output directory exists even when skipping analysis/stats
     output_dir.mkdir(parents=True, exist_ok=True)
     
@@ -540,7 +545,21 @@ def main(model, model_name, data_loader, num_samples=None, data_choice=None, k=N
     
     # Create cache directory specific to this model and data type
     cache_root = cache_dir_root or "model_interpretation/outputs/fisher_analysis_hessian/rsvd_cache"
-    cache_dir = f"{cache_root}/{original_model_name}_{data_type}_k{k}_p{power_iterations}"
+    cache_dir = f"{cache_root}/{data_type}_{original_model_name}_k{k}_p{power_iterations}"
+    
+    # Print a clean configuration summary before starting the run
+    print("\nConfiguration:")
+    print(f"  Model name: {original_model_name}")
+    print(f"  Model type: {model_class_name}")
+    print(f"  Data split: {data_type}")
+    print(f"  k (components): {k}")
+    print(f"  Power iterations: {power_iterations}")
+    print(f"  Use labels: {use_labels}")
+    print(f"  Sample limit: {num_samples if 'num_samples' in locals() else 'N/A'}")
+    print(f"  Save intermediates: {bool(save_intermediates)}")
+    print(f"  Compute stats/plots: {bool(compute_stats)}")
+    print(f"  Output dir: {output_dir}")
+    print(f"  Cache dir: {cache_dir}")
     
     U, S, V, error, fisher_trace, timings = calculate_fisher_rsvd(
         model,
@@ -639,11 +658,60 @@ if __name__ == "__main__":
     parser.add_argument("--no-save-intermediates", action="store_true", help="Disable saving intermediate matrices to cache")
     parser.add_argument("--cache-dir", type=str, default=None, help="Root cache directory for intermediates")
     parser.add_argument("--no-stats", action="store_true", help="Skip statistics/plots saving phase")
-    parser.add_argument("--use-labels", type=str2bool, default=True, help="Use ground-truth labels (True) or predicted probabilities (False) for loss")
+    parser.add_argument("--use-labels", type=str2bool, default=None, help="Use ground-truth labels (True) or predicted probabilities (False) for loss")
 
     args = parser.parse_args()
 
-    # Load model
+    # Determine parameters interactively BEFORE loading model
+    # Data split
+    data_choice = args.data
+    if data_choice is None:
+        print("\nChoose data for Fisher Information analysis:")
+        print("1. Train data")
+        print("2. Test data")
+        while True:
+            choice = input("Enter choice (1 or 2): ").strip()
+            if choice == '1':
+                data_choice = 'train'
+                break
+            elif choice == '2':
+                data_choice = 'test'
+                break
+            else:
+                print("Invalid choice. Please enter 1 or 2.")
+    # Number of components k
+    k = args.k
+    if k is None:
+        while True:
+            try:
+                k_val = int(input("\nEnter k (number of RSVD components): ").strip())
+                if k_val <= 0:
+                    print("k must be a positive integer.")
+                    continue
+                k = k_val
+                break
+            except ValueError:
+                print("Please enter a valid integer.")
+    # Use labels?
+    use_labels = args.use_labels
+    if use_labels is None:
+        ul = input("\nUse ground-truth labels for loss? (y/n, default=y): ").strip().lower()
+        use_labels = (ul != 'n')
+    # Optional sample limit
+    num_samples = args.num_samples
+    if num_samples is None:
+        ns = input("\nLimit number of samples? Enter integer or press Enter for all: ").strip()
+        if ns != "":
+            try:
+                num_samples = int(ns)
+                if num_samples <= 0:
+                    print("Non-positive sample count provided; using all samples.")
+                    num_samples = None
+            except ValueError:
+                print("Invalid input; using all samples.")
+                num_samples = None
+
+    # Load model AFTER parameters are set
     if args.trainer:
         if args.checkpoint == "latest":
             model, model_name, data_loader = load_model_from_trainer(args.trainer, "model_latest.pt", device=args.device)
@@ -662,12 +730,12 @@ if __name__ == "__main__":
         model,
         model_name,
         data_loader,
-        num_samples=args.num_samples,
-        data_choice=args.data,
-        k=args.k,
+        num_samples=num_samples,
+        data_choice=data_choice,
+        k=k,
         power_iterations=args.power_iters,
         save_intermediates=(not args.no_save_intermediates),
         compute_stats=(not args.no_stats),
         cache_dir_root=args.cache_dir,
-        use_labels=args.use_labels,
+        use_labels=use_labels,
     )

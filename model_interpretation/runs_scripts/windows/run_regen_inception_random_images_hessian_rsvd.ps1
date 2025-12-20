@@ -2,9 +2,15 @@
 
 $ErrorActionPreference = "Stop"
 
-# Ensure we run from repo root if invoked elsewhere
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location $ScriptDir
+# Ensure we run from script folder
+$PSScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location $PSScriptRoot
+
+# Resolve repo root and target Python script relative to this file (go up 3 levels)
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
+$pyScript = Join-Path $repoRoot "model_interpretation\fisher_information_hessian_rsvd.py"
+# Change working directory to repo root so all relative imports/paths work
+Set-Location $repoRoot
 
 # Python executable (adjust if needed)
 $python = "python"
@@ -23,8 +29,8 @@ $env:TORCH_ALLOW_TF32_CUDNN = "0"
 # Unbuffer Python so logs stream immediately
 $env:PYTHONUNBUFFERED = "1"
 
-# Log setup
-$logDir = Join-Path $ScriptDir "logs"
+# Log setup (Windows-specific logs folder)
+$logDir = Join-Path $PSScriptRoot "logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $logPath = Join-Path $logDir "regen_inception_random_images_hessian_rsvd_${timestamp}.log"
@@ -34,7 +40,7 @@ Write-Host "Logging to: $logPath"
 $prevErrorActionPreference = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
 try {
-  & $python model_interpretation/fisher_information_hessian_rsvd.py `
+  & $python "$pyScript" `
     --trainer $trainer `
     --checkpoint $checkpoint `
     --data $data `
@@ -50,5 +56,6 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "Completed RSVD Hessian run for $trainer with N=$numSamples, k=$k. Log: $logPath"
+
 
 
