@@ -248,7 +248,8 @@ def calculate_fisher_rsvd(model, data_loader, k, power_iterations=1, save_interm
         if save_intermediates:
             np.save(B_file, B.cpu().numpy())
             np.save(error_file, np.array(error.cpu().numpy()))
-            np.save(fisher_trace_file, np.array(fisher_trace))
+            # Save fisher_trace as a plain Python float to avoid NumPy deprecation warnings
+            np.save(fisher_trace_file, float(fisher_trace))
             print(f"Saved B to {B_file}")
             print(f"Saved error to {error_file} (will also be saved in final statistics)")
             print(f"Saved fisher trace to {fisher_trace_file}")

@@ -1,5 +1,5 @@
 Param(
-    [string]$TaskName = "RSVD_Hessian_RegenInception",
+    [string]$TaskName = "RSVD_Hessian_RegenInception_RandomLabels_Test",
     [switch]$Tail
 )
 
@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 
 # Resolve paths
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$runner = Join-Path $scriptRoot "run_regen_inception_hessian_rsvd.ps1"
+$runner = Join-Path $scriptRoot "run_regen_inception_random_labels_hessian_rsvd_test.ps1"
 if (-not (Test-Path $runner)) { throw "Runner script not found: $runner" }
 
 # Compute a start time one minute in the future to avoid /ST warning
@@ -27,7 +27,7 @@ if ($Tail) {
     Write-Host "Waiting for log file in: $logDir"
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
     for ($i = 0; $i -lt 150; $i++) { # wait up to ~5 minutes
-        $log = Get-ChildItem $logDir -Filter "regen_inception_hessian_rsvd_*.log" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Desc | Select-Object -First 1
+        $log = Get-ChildItem $logDir -Filter "regen_inception_random_labels_hessian_rsvd_*.log" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Desc | Select-Object -First 1
         if ($null -ne $log) {
             Write-Host "Tailing: $($log.FullName)"
             Get-Content $log.FullName -Wait

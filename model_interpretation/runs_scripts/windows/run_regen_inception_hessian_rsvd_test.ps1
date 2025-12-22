@@ -1,4 +1,4 @@
-# PowerShell script to run RSVD Fisher/Hessian for regen_inception 10k random images, k=500
+# PowerShell script to run RSVD Fisher/Hessian for regen_inception with 10k samples, k=500 (test)
 
 $ErrorActionPreference = "Stop"
 
@@ -16,11 +16,12 @@ Set-Location $repoRoot
 $python = "python"
 
 # Parameters
-$trainer = "trainers.specific_trainers.regen_inception_10k_random_images"
+$trainer = "trainers.specific_trainers.regen_inception"
 $checkpoint = "latest"
-$data = "train"
+$data = "test"
 $k = 500
 $numSamples = 10000
+$useLabels = $false
 
 # Disable TF32 for better numerical fidelity (optional)
 $env:TORCH_ALLOW_TF32_CUBLAS = "0"
@@ -33,10 +34,10 @@ $env:PYTHONUNBUFFERED = "1"
 $logDir = Join-Path $PSScriptRoot "logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$logPath = Join-Path $logDir "regen_inception_10k_random_images_hessian_rsvd_${timestamp}.log"
+$logPath = Join-Path $logDir "regen_inception_hessian_rsvd_${timestamp}.log"
 Write-Host "Logging to: $logPath"
 
-# Run and tee all output to the log (stdout+stderr)
+# Run and tee all output to the log (stdout+stderr), don't stop on warnings
 $prevErrorActionPreference = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
 try {
@@ -45,7 +46,8 @@ try {
     --checkpoint $checkpoint `
     --data $data `
     --k $k `
-    --num-samples $numSamples 2>&1 | Tee-Object -FilePath $logPath -Append
+    --num-samples $numSamples `
+    --use-labels $useLabels 2>&1 | Tee-Object -FilePath $logPath -Append
 }
 finally {
   $ErrorActionPreference = $prevErrorActionPreference
@@ -55,7 +57,6 @@ if ($LASTEXITCODE -ne 0) {
   Write-Error "RSVD Hessian run failed with exit code $LASTEXITCODE"
 }
 
-Write-Host "Completed RSVD Hessian run for $trainer with N=$numSamples, k=$k. Log: $logPath"
-
+Write-Host "Completed RSVD Hessian run (test) for $trainer with N=$numSamples, k=$k, useLabels=$useLabels. Log: $logPath"
 
 

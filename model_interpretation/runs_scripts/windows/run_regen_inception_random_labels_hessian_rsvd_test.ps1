@@ -1,4 +1,4 @@
-# PowerShell script to run RSVD Fisher/Hessian for regen_inception with 10k samples, k=500, no stats
+# PowerShell script (test) for regen_inception random labels, k=500
 
 $ErrorActionPreference = "Stop"
 
@@ -16,12 +16,11 @@ Set-Location $repoRoot
 $python = "python"
 
 # Parameters
-$trainer = "trainers.specific_trainers.regen_inception"
+$trainer = "trainers.specific_trainers.regen_inception_random_labels"
 $checkpoint = "latest"
-$data = "train"
+$data = "test"
 $k = 500
 $numSamples = 10000
-$useLabels = $false
 
 # Disable TF32 for better numerical fidelity (optional)
 $env:TORCH_ALLOW_TF32_CUBLAS = "0"
@@ -34,23 +33,28 @@ $env:PYTHONUNBUFFERED = "1"
 $logDir = Join-Path $PSScriptRoot "logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$logPath = Join-Path $logDir "regen_inception_hessian_rsvd_${timestamp}.log"
+$logPath = Join-Path $logDir "regen_inception_random_labels_hessian_rsvd_${timestamp}.log"
 Write-Host "Logging to: $logPath"
 
 # Run and tee all output to the log (stdout+stderr)
-& $python "$pyScript" `
-  --trainer $trainer `
-  --checkpoint $checkpoint `
-  --data $data `
-  --k $k `
-  --num-samples $numSamples `
-  --use-labels $useLabels `
-  --no-stats 2>&1 | Tee-Object -FilePath $logPath -Append
+$prevErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+try {
+  & $python "$pyScript" `
+    --trainer $trainer `
+    --checkpoint $checkpoint `
+    --data $data `
+    --k $k `
+    --num-samples $numSamples 2>&1 | Tee-Object -FilePath $logPath -Append
+}
+finally {
+  $ErrorActionPreference = $prevErrorActionPreference
+}
 
 if ($LASTEXITCODE -ne 0) {
   Write-Error "RSVD Hessian run failed with exit code $LASTEXITCODE"
 }
 
-Write-Host "Completed RSVD Hessian run for $trainer with N=$numSamples, k=$k, useLabels=$useLabels (no stats). Log: $logPath"
+Write-Host "Completed RSVD Hessian run (test) for $trainer with N=$numSamples, k=$k. Log: $logPath"
 
 

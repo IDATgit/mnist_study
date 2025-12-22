@@ -1,4 +1,4 @@
-# PowerShell script to run RSVD Fisher/Hessian for regen_inception with 10k samples, k=500, no stats
+# PowerShell script (train) for regen_inception 10k random images, k=500
 
 $ErrorActionPreference = "Stop"
 
@@ -16,7 +16,7 @@ Set-Location $repoRoot
 $python = "python"
 
 # Parameters
-$trainer = "trainers.specific_trainers.regen_inception_random_labels"
+$trainer = "trainers.specific_trainers.regen_inception_10k_random_images"
 $checkpoint = "latest"
 $data = "train"
 $k = 500
@@ -33,7 +33,7 @@ $env:PYTHONUNBUFFERED = "1"
 $logDir = Join-Path $PSScriptRoot "logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$logPath = Join-Path $logDir "regen_inception_random_labels_hessian_rsvd_${timestamp}.log"
+$logPath = Join-Path $logDir "regen_inception_10k_random_images_hessian_rsvd_${timestamp}.log"
 Write-Host "Logging to: $logPath"
 
 # Run and tee all output to the log (stdout+stderr)
@@ -55,7 +55,6 @@ if ($LASTEXITCODE -ne 0) {
   Write-Error "RSVD Hessian run failed with exit code $LASTEXITCODE"
 }
 
-Write-Host "Completed RSVD Hessian run for $trainer with N=$numSamples, k=$k. Log: $logPath"
-
+Write-Host "Completed RSVD Hessian run (train) for $trainer with N=$numSamples, k=$k. Log: $logPath"
 
 
