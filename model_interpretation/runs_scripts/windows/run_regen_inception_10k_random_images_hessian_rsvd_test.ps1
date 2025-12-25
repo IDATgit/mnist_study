@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 
 # Ensure we run from script folder
 $PSScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location $PSSScriptRoot
+Set-Location $PSScriptRoot
 
 # Resolve repo root and target Python script relative to this file (go up 3 levels)
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
@@ -21,6 +21,7 @@ $checkpoint = "latest"
 $data = "test"
 $k = 500
 $numSamples = 10000
+$useLabels = $false
 
 # Disable TF32 for better numerical fidelity (optional)
 $env:TORCH_ALLOW_TF32_CUBLAS = "0"
@@ -45,7 +46,8 @@ try {
     --checkpoint $checkpoint `
     --data $data `
     --k $k `
-    --num-samples $numSamples 2>&1 | Tee-Object -FilePath $logPath -Append
+    --num-samples $numSamples `
+    --use-labels $useLabels 2>&1 | Tee-Object -FilePath $logPath -Append
 }
 finally {
   $ErrorActionPreference = $prevErrorActionPreference

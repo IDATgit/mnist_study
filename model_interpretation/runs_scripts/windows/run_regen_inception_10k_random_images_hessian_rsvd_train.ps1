@@ -21,6 +21,7 @@ $checkpoint = "latest"
 $data = "train"
 $k = 500
 $numSamples = 10000
+$useLabels = $false
 
 # Disable TF32 for better numerical fidelity (optional)
 $env:TORCH_ALLOW_TF32_CUBLAS = "0"
@@ -45,7 +46,8 @@ try {
     --checkpoint $checkpoint `
     --data $data `
     --k $k `
-    --num-samples $numSamples 2>&1 | Tee-Object -FilePath $logPath -Append
+    --num-samples $numSamples `
+    --use-labels $useLabels 2>&1 | Tee-Object -FilePath $logPath -Append
 }
 finally {
   $ErrorActionPreference = $prevErrorActionPreference
