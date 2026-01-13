@@ -432,7 +432,7 @@ def analyze_fisher_information_rsvd(U, S, V, model, model_name, output_dir, erro
     return stats
 
 
-def main(model, model_name, data_loader, num_samples=None, data_choice=None, k=None, power_iterations=1, save_intermediates=True, compute_stats=True, cache_dir_root=None, use_labels=None):
+def main(model, model_name, data_loader, num_samples=None, data_choice=None, k=None, power_iterations=1, save_intermediates=True, compute_stats=True, cache_dir_root=None, use_labels=None, random_weights=False, weights_seed=None):
     start_time = time.time()
     
     # Let user choose between train and test data
@@ -529,7 +529,8 @@ def main(model, model_name, data_loader, num_samples=None, data_choice=None, k=N
     print(f"RSVD matrix (B) size: {num_params} x {k} = {num_params*k:,} elements ({rsvd_bytes:,} bytes)")
     
     # Output directory - use the original model name from training
-    output_dir = Path(f'model_interpretation/outputs/fisher_analysis_hessian/{data_type}_{original_model_name}/')
+    seed_suffix = f"_random_weights_seed_{weights_seed}" if (random_weights and (weights_seed is not None)) else ""
+    output_dir = Path(f'model_interpretation/outputs/fisher_analysis_hessian/{data_type}_{original_model_name}{seed_suffix}/')
     # Ensure output directory exists even when skipping analysis/stats
     output_dir.mkdir(parents=True, exist_ok=True)
     
@@ -546,7 +547,7 @@ def main(model, model_name, data_loader, num_samples=None, data_choice=None, k=N
     
     # Create cache directory specific to this model and data type
     cache_root = cache_dir_root or "model_interpretation/outputs/fisher_analysis_hessian/rsvd_cache"
-    cache_dir = f"{cache_root}/{data_type}_{original_model_name}_k{k}_p{power_iterations}"
+    cache_dir = f"{cache_root}/{data_type}_{original_model_name}{seed_suffix}_k{k}_p{power_iterations}"
     
     # Print a clean configuration summary before starting the run
     print("\nConfiguration:")
@@ -556,6 +557,8 @@ def main(model, model_name, data_loader, num_samples=None, data_choice=None, k=N
     print(f"  k (components): {k}")
     print(f"  Power iterations: {power_iterations}")
     print(f"  Use labels: {use_labels}")
+    print(f"  Random weights: {bool(random_weights)}")
+    print(f"  Weights seed: {weights_seed if (random_weights and (weights_seed is not None)) else 'None'}")
     print(f"  Sample limit: {num_samples if 'num_samples' in locals() else 'N/A'}")
     print(f"  Save intermediates: {bool(save_intermediates)}")
     print(f"  Compute stats/plots: {bool(compute_stats)}")
@@ -637,7 +640,9 @@ if __name__ == "__main__":
     import argparse
     from utils.model_loader import (
         load_model_interactive,
+        load_model_interactive_untrained,
         load_model_from_trainer,
+        load_model_from_trainer_untrained,
         load_best_model,
         load_model_at_epoch,
     )
@@ -660,6 +665,8 @@ if __name__ == "__main__":
     parser.add_argument("--cache-dir", type=str, default=None, help="Root cache directory for intermediates")
     parser.add_argument("--no-stats", action="store_true", help="Skip statistics/plots saving phase")
     parser.add_argument("--use-labels", type=str2bool, default=None, help="Use ground-truth labels (True) or predicted probabilities (False) for loss")
+    parser.add_argument("--random-weights", type=str2bool, default=None, help="Initialize model with random weights (do not load checkpoints)")
+    parser.add_argument("--weights-seed", type=int, default=None, help="Seed for random model weights (only used when --random-weights is true)")
 
     args = parser.parse_args()
 
@@ -698,6 +705,21 @@ if __name__ == "__main__":
     if use_labels is None:
         ul = input("\nUse ground-truth labels for loss? (y/n, default=y): ").strip().lower()
         use_labels = (ul != 'n')
+    # Random weights?
+    random_weights = args.random_weights
+    if random_weights is None:
+        rw = input("\nUse random (untrained) model weights? (y/n, default=n): ").strip().lower()
+        random_weights = (rw == 'y')
+    # Optional weights seed (when random weights are used)
+    weights_seed = args.weights_seed
+    if random_weights and weights_seed is None:
+        ws = input("\nEnter weights seed (integer) or press Enter to skip: ").strip()
+        if ws != "":
+            try:
+                weights_seed = int(ws)
+            except ValueError:
+                print("Invalid seed; continuing without setting a weights seed.")
+                weights_seed = None
     # Optional sample limit
     num_samples = args.num_samples
     if num_samples is None:
@@ -713,18 +735,47 @@ if __name__ == "__main__":
                 num_samples = None
 
     # Load model AFTER parameters are set
+    # If random weights are requested and a weights seed is provided, set seeds BEFORE importing/instantiating the model
+    if random_weights and ('weights_seed' in locals()) and (weights_seed is not None):
+        try:
+            import torch as _torch_seed_helper
+            _torch_seed_helper.manual_seed(weights_seed)
+            if _torch_seed_helper.cuda.is_available():
+                _torch_seed_helper.cuda.manual_seed_all(weights_seed)
+            print(f"Using weights seed: {weights_seed}")
+        except Exception as _e:
+            print(f"Warning: failed to set weights seed ({weights_seed}): {_e}")
     if args.trainer:
-        if args.checkpoint == "latest":
-            model, model_name, data_loader = load_model_from_trainer(args.trainer, "model_latest.pt", device=args.device)
-        elif args.checkpoint == "best":
-            model, model_name, data_loader = load_best_model(args.trainer, device=args.device)
+        if random_weights:
+            model, model_name, data_loader = load_model_from_trainer_untrained(args.trainer, device=args.device)
         else:
-            if args.epoch is None:
-                raise ValueError("--epoch is required when --checkpoint epoch is used")
-            model, model_name, data_loader = load_model_at_epoch(args.trainer, args.epoch, device=args.device)
+            if args.checkpoint == "latest":
+                model, model_name, data_loader = load_model_from_trainer(args.trainer, "model_latest.pt", device=args.device)
+            elif args.checkpoint == "best":
+                model, model_name, data_loader = load_best_model(args.trainer, device=args.device)
+            else:
+                if args.epoch is None:
+                    raise ValueError("--epoch is required when --checkpoint epoch is used")
+                model, model_name, data_loader = load_model_at_epoch(args.trainer, args.epoch, device=args.device)
     else:
         # Interactive fallback
-        model, model_name, data_loader = load_model_interactive()
+        if random_weights:
+            model, model_name, data_loader = load_model_interactive_untrained()
+        else:
+            model, model_name, data_loader = load_model_interactive()
+
+    # Debug: print first and last 10 weights when using random initialization
+    try:
+        if random_weights:
+            flat_params_dbg = torch.cat([p.detach().view(-1) for p in model.parameters()])
+            flat_np = flat_params_dbg[:].cpu().numpy()
+            head_vals = flat_np[:10]
+            tail_vals = flat_np[-10:] if flat_np.size >= 10 else flat_np
+            np.set_printoptions(precision=6, suppress=True)
+            print("\n[Weights Debug] First 10 weights:", head_vals)
+            print("[Weights Debug] Last 10 weights:", tail_vals)
+    except Exception as _dbg_e:
+        print(f"[Weights Debug] Failed to print weights: {_dbg_e}")
 
     # Run analysis
     main(
@@ -739,4 +790,6 @@ if __name__ == "__main__":
         compute_stats=(not args.no_stats),
         cache_dir_root=args.cache_dir,
         use_labels=use_labels,
+        random_weights=random_weights,
+        weights_seed=weights_seed,
     )

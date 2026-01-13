@@ -71,6 +71,31 @@ def load_model_from_trainer(
     
     return model, model_name, data_loader
 
+def load_model_from_trainer_untrained(
+    trainer_module_path: str,
+    device: Optional[str] = None
+) -> Tuple[torch.nn.Module, str, any]:
+    """
+    Load a model from a specific trainer module without restoring any checkpoint
+    (i.e., return it with its random initialization as defined by the trainer).
+    """
+    try:
+        trainer_module = importlib.import_module(trainer_module_path)
+    except ImportError as e:
+        raise ImportError(f"Failed to import trainer module '{trainer_module_path}': {e}")
+
+    model = trainer_module.model
+    model_name = trainer_module.model_name
+    data_loader = trainer_module.data_loader
+
+    if device is None:
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = torch.device(device)
+
+    model = model.to(device)
+    print(f"Initialized (untrained) model '{model_name}' on {device} from trainer '{trainer_module_path}'")
+    return model, model_name, data_loader
+
 def load_best_model(trainer_module_path: str, device: Optional[str] = None) -> Tuple[torch.nn.Module, str, any]:
     """
     Load the best model from a specific trainer module.
@@ -255,6 +280,62 @@ def load_model_interactive(device: Optional[str] = None) -> Tuple[torch.nn.Modul
     model.load_state_dict(checkpoint['model_state_dict'])
        
     print(f"Model loaded successfully on {device}")
+    return model, selected_model, data_loader
+
+def load_model_interactive_untrained(device: Optional[str] = None) -> Tuple[torch.nn.Module, str, any]:
+    """
+    Interactively select a model architecture (based on available trained outputs)
+    but return it with random initialization (no checkpoint loaded).
+    """
+    import importlib
+    outputs_dir = Path('trainers') / 'outputs'
+    if not outputs_dir.exists():
+        raise FileNotFoundError(f"Outputs directory not found: {outputs_dir}")
+
+    available_models = []
+    for model_dir in outputs_dir.iterdir():
+        if not model_dir.is_dir():
+            continue
+        checkpoint_dir = model_dir / 'checkpoints'
+        if checkpoint_dir.exists():
+            available_models.append(model_dir.name)
+
+    if not available_models:
+        raise FileNotFoundError("No trained models with checkpoints found")
+
+    available_models.sort()
+    print("\nAvailable models (select architecture; weights will be random):")
+    for i, model_name in enumerate(available_models):
+        print(f"[{i}] {model_name}")
+
+    while True:
+        try:
+            selection = input("\nEnter the number of the model to initialize: ")
+            index = int(selection)
+            if 0 <= index < len(available_models):
+                selected_model = available_models[index]
+                break
+            else:
+                print(f"Invalid selection. Please enter a number between 0 and {len(available_models)-1}.")
+        except ValueError:
+            print("Please enter a valid number.")
+
+    # Try to map model dir name to trainer module (same heuristic as load_model_interactive)
+    exact_match_path = f'trainers.specific_trainers.{selected_model.lower()}'
+    try:
+        trainer_module = importlib.import_module(exact_match_path)
+    except ImportError as e:
+        raise ImportError(f"Failed to import trainer for selected model '{selected_model}': {e}")
+
+    model = trainer_module.model
+    data_loader = trainer_module.data_loader
+
+    if device is None:
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = torch.device(device)
+    model = model.to(device)
+
+    print(f"Initialized (untrained) model '{selected_model}' on {device}")
     return model, selected_model, data_loader
 
 # Example usage in main section

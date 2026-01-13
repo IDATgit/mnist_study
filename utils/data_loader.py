@@ -53,6 +53,7 @@ class MNISTDataLoader:
             transform=self.transform,
             download=True
         )
+        torch.manual_seed(self.random_seed)
         self._preprocess_training_set()
         self._preprocess_test_set()
 
@@ -73,7 +74,6 @@ class MNISTDataLoader:
 
         # Randomize labels if requested
         if self.random_labels:
-            torch.manual_seed(self.random_seed)
             random_targets = torch.randint(0, 10, (self.num_train_samples,))
             self.train_dataset.targets = random_targets
             
@@ -85,7 +85,6 @@ class MNISTDataLoader:
         """Apply randomization options to the test set as well."""
         # Randomize labels if requested
         if self.random_labels:
-            torch.manual_seed(self.random_seed)
             num_test_samples = len(self.test_dataset.targets)
             random_targets = torch.randint(0, 10, (num_test_samples,))
             self.test_dataset.targets = random_targets
@@ -101,12 +100,10 @@ class MNISTDataLoader:
         Args:
             dataset: PyTorch dataset
         """
-        # Set the random seed for reproducibility
-        torch.manual_seed(self.random_seed)
         
         # Create random noise images with the same shape as MNIST (28x28)
         # We use uniform noise in range [0, 255] to match MNIST's original range
-        random_data = torch.randint(0, 256, dataset.data.shape, dtype=torch.uint8)
+        random_data = torch.randint(0, 256, dataset.data.shape, dtype=torch.uint8, generator=torch.Generator().manual_seed(self.random_seed))
         
         print(f"Replacing {len(dataset.data)} real images with random uniform noise...")
         dataset.data = random_data
@@ -234,6 +231,7 @@ class CIFAR10DataLoader:
             transform=self.transform,
             download=True
         )
+        torch.manual_seed(self.random_seed)
         self._preprocess_training_set()
         self._preprocess_test_set()
 
@@ -254,7 +252,6 @@ class CIFAR10DataLoader:
 
         # Randomize labels if requested
         if self.random_labels:
-            torch.manual_seed(self.random_seed)
             random_targets = torch.randint(0, 10, (self.num_train_samples,)).tolist()
             self.train_dataset.targets = random_targets
             
@@ -266,7 +263,6 @@ class CIFAR10DataLoader:
         """Apply randomization options to the test set as well."""
         # Randomize labels if requested
         if self.random_labels:
-            torch.manual_seed(self.random_seed)
             num_test_samples = len(self.test_dataset.targets)
             random_targets = torch.randint(0, 10, (num_test_samples,)).tolist()
             self.test_dataset.targets = random_targets
@@ -282,9 +278,6 @@ class CIFAR10DataLoader:
         Args:
             dataset: PyTorch dataset
         """
-        # Set the random seed for reproducibility
-        torch.manual_seed(self.random_seed)
-        
         # Create random noise images with the same shape as CIFAR-10 (32x32x3)
         # We use uniform noise in range [0, 255] to match CIFAR-10's original range
         random_data = torch.randint(0, 256, dataset.data.shape, dtype=torch.uint8)

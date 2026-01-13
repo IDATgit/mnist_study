@@ -1,0 +1,22 @@
+[
+	{
+		"folder": "train_regen_inception_random_weights_seed_0",
+		"label": "Random weights seed 0 (train)",
+		"color": "#000000",
+		"linestyle": "solid"
+	},
+	{
+		"folder": "train_regen_inception_random_weights_seed_1",
+		"label": "Random weights seed 1 (train)",
+		"color": "#1f77b4",
+		"linestyle": "solid"
+	},
+	{
+		"folder": "train_regen_inception_random_weights_seed_3",
+		"label": "Random weights seed 3 (train)",
+		"color": "#d62728",
+		"linestyle": "solid"
+	}
+]
+
+
