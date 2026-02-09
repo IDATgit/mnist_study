@@ -4,6 +4,7 @@ import torch.optim as optim
 from tqdm import tqdm
 import sys
 import os
+import json
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 import shutil
@@ -276,13 +277,16 @@ class BasicTrainer:
             'is_training': is_training
         })
     
-    def save_checkpoint(self, epoch, test_acc, is_best=False):
+    def save_checkpoint(self, epoch, train_acc, test_acc, train_loss, test_loss, is_best=False):
         """
-        Save a checkpoint of the model.
+        Save a checkpoint of the model and a checkpoint_info JSON with metrics.
         
         Args:
             epoch (int): Current epoch number
+            train_acc (float): Train accuracy for this epoch
             test_acc (float): Test accuracy for this epoch
+            train_loss (float): Train loss for this epoch
+            test_loss (float): Test loss for this epoch
             is_best (bool): Whether this is the best model so far
         """
         checkpoint = {
@@ -299,6 +303,18 @@ class BasicTrainer:
         # Save regular checkpoint
         checkpoint_path = os.path.join(self.checkpoint_dir, f'checkpoint_epoch_{epoch}.pt')
         torch.save(checkpoint, checkpoint_path)
+        
+        # Save checkpoint_info.json with same epoch number (train/test acc and loss)
+        checkpoint_info = {
+            'epoch': epoch,
+            'train_accuracy': train_acc,
+            'test_accuracy': test_acc,
+            'train_loss': train_loss,
+            'test_loss': test_loss,
+        }
+        info_path = os.path.join(self.checkpoint_dir, f'checkpoint_info_epoch_{epoch}.json')
+        with open(info_path, 'w') as f:
+            json.dump(checkpoint_info, f, indent=2)
         
         # Always save the latest model
         latest_path = os.path.join(self.checkpoint_dir, 'model_latest.pt')
@@ -467,7 +483,7 @@ class BasicTrainer:
                 self.best_epoch = epoch
             
             # Save checkpoint
-            self.save_checkpoint(epoch, test_acc, is_best)
+            self.save_checkpoint(epoch, train_acc, test_acc, train_loss, test_loss, is_best)
             
             # Print epoch results
             print(f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%")

@@ -26,6 +26,7 @@ workplan.txt
 data/
 # PyTorch model checkpoints - ignore all checkpoints
 trainers/outputs/*/checkpoints/*.pt
+trainers/outputs/*/checkpoints
 
 # Tensorboard logs
 trainers/outputs/*/logs/

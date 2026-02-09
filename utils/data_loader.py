@@ -361,3 +361,74 @@ class CIFAR10DataLoader:
     def get_test_loader(self):
         """Get the test data loader."""
         return self.get_data_loader(train=False) 
+
+
+class ModularArithmeticDataset(torch.utils.data.Dataset):
+    """
+    A tiny dataset for modular arithmetic sequences of length 4: [a, op, b, =]
+    with target c. Vocab = p residues + 2 special tokens (op, '=').
+    """
+    def __init__(self, X, T, p):
+        super().__init__()
+        self.X = X.long()
+        self.T = T.long()
+        self.vocab_size = p + 2
+
+    def __len__(self):
+        return self.X.size(0)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.T[idx]
+
+
+class ModularArithmeticDataLoader:
+    """
+    DataLoader for modular arithmetic tasks (grokking-style).
+    Generates the operation table, splits into train/test by fraction,
+    and returns token sequences for a small transformer.
+    """
+    def __init__(self, p=97, op='/', train_fraction=0.5, batch_size=512, seed=42):
+        self.p = int(p)
+        self.op = str(op)
+        self.train_fraction = float(train_fraction)
+        self.batch_size = int(batch_size)
+        self.seed = int(seed)
+
+        # Build all pairs
+        ops = {
+            '*': lambda a, b: (a * b) % self.p,
+            '/': lambda a, b: (a * pow(int(b), self.p - 2, self.p)) % self.p,
+            '+': lambda a, b: (a + b) % self.p,
+            '-': lambda a, b: (a - b) % self.p,
+        }
+        if self.op not in ops:
+            raise ValueError("op must be one of ['*','/','+','-']")
+        a_vals = range(self.p)
+        b_start = 1 if self.op == '/' else 0
+        pairs = [(a, b) for a in a_vals for b in range(b_start, self.p)]
+        # Targets
+        c_vals = [ops[self.op](a, b) for (a, b) in pairs]
+        # Tokenize into 4-token sequences
+        op_token = self.p
+        eq_token = self.p + 1
+        import torch as _torch
+        X = _torch.tensor([[a, op_token, b, eq_token] for (a, b) in pairs], dtype=_torch.long)
+        T = _torch.tensor(c_vals, dtype=_torch.long)
+
+        # Shuffle and split
+        g = torch.Generator().manual_seed(self.seed)
+        perm = torch.randperm(X.size(0), generator=g)
+        n_train = int(self.train_fraction * X.size(0))
+        tr_idx = perm[:n_train]
+        te_idx = perm[n_train:]
+        Xtr, Ttr = X[tr_idx], T[tr_idx]
+        Xte, Tte = X[te_idx], T[te_idx]
+
+        self.train_dataset = ModularArithmeticDataset(Xtr, Ttr, self.p)
+        self.test_dataset = ModularArithmeticDataset(Xte, Tte, self.p)
+
+    def get_train_loader(self):
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, pin_memory=True)
+
+    def get_test_loader(self):
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, pin_memory=True)
