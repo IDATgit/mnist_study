@@ -9,6 +9,7 @@ import cupy as cp
 import time
 from tqdm import tqdm
 from torch.autograd.functional import hvp
+from torch.autograd.functional import vhp
 from torch.utils.data import Subset, DataLoader
 
 # Add the project root to the path
@@ -81,7 +82,9 @@ def apply_fisher_to_matrix(model, data_loader, Q, device, side='right', compute_
         # Apply A (Hessian/Fisher) to each column of Q via HVP; weight by batch size
         for j in range(k):
             v = Q[:, j]
-            f_output, Hv_j = hvp(loss_fn, flat_params, v)
+            # f_output, Hv_j = hvp(loss_fn, flat_params, v) 
+            # Replced by vhp, much faster, same result.
+            f_output, Hv_j = vhp(loss_fn, flat_params, v)
             right_product[:, j] += Hv_j
 
         total_samples += batch_size
@@ -475,6 +478,7 @@ def main(model, model_name, data_loader, num_samples=None, data_choice=None, k=N
             subset,
             batch_size=data_for_analysis.batch_size,
             shuffle=False,
+            drop_last=True,
             pin_memory=getattr(data_for_analysis, 'pin_memory', True),
             num_workers=getattr(data_for_analysis, 'num_workers', 0)
         )

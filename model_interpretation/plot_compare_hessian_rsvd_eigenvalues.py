@@ -55,18 +55,28 @@ def build_default_series() -> List[Dict[str, str]]:
 	- train_regen_inception_random_weights_seed_0 in black
 	Train uses solid line, test uses dotted line.
 	"""
+	# return [
+	# 	# Inception
+	# 	{"folder": "train_regen_inception", "label": "Inception (train)", "color": "#1f77b4", "linestyle": "solid"},
+	# 	{"folder": "test_regen_inception", "label": "Inception (test)", "color": "#1f77b4", "linestyle": "dotted"},
+	# 	# Random labels
+	# 	{"folder": "train_regen_inception_random_labels", "label": "Random labels (train)", "color": "#d62728", "linestyle": "solid"},
+	# 	{"folder": "test_regen_inception_random_labels", "label": "Random labels (test)", "color": "#d62728", "linestyle": "dotted"},
+	# 	# Random images
+	# 	{"folder": "train_regen_inception_random_images", "label": "Random images (train)", "color": "#2ca02c", "linestyle": "solid"},
+	# 	{"folder": "test_regen_inception_random_images", "label": "Random images (test)", "color": "#2ca02c", "linestyle": "dotted"},
+	# 	# Random weights seed 0 in black
+	# 	{"folder": "train_regen_inception_random_weights_seed_0", "label": "Random weights seed 0 (train)", "color": "#000000", "linestyle": "solid"},
+	# ]
+
+	# Grokking mod div
 	return [
-		# Inception
-		{"folder": "train_regen_inception", "label": "Inception (train)", "color": "#1f77b4", "linestyle": "solid"},
-		{"folder": "test_regen_inception", "label": "Inception (test)", "color": "#1f77b4", "linestyle": "dotted"},
-		# Random labels
-		{"folder": "train_regen_inception_random_labels", "label": "Random labels (train)", "color": "#d62728", "linestyle": "solid"},
-		{"folder": "test_regen_inception_random_labels", "label": "Random labels (test)", "color": "#d62728", "linestyle": "dotted"},
-		# Random images
-		{"folder": "train_regen_inception_random_images", "label": "Random images (train)", "color": "#2ca02c", "linestyle": "solid"},
-		{"folder": "test_regen_inception_random_images", "label": "Random images (test)", "color": "#2ca02c", "linestyle": "dotted"},
-		# Random weights seed 0 in black
-		{"folder": "train_regen_inception_random_weights_seed_0", "label": "Random weights seed 0 (train)", "color": "#000000", "linestyle": "solid"},
+		{"folder": "train_grokking_modular_division_p97_epoch_73", "label": "Grokking mod div train (Bad Generalization)", "color": "#1f77b4", "linestyle": "solid"},
+		{"folder": "test_grokking_modular_division_p97_epoch_73", "label": "Grokking mod div test (Bad Generalization)", "color": "#1f77b4", "linestyle": "dotted"},
+		{"folder": "test_grokking_modular_division_p97", "label": "Grokking mod div test (Good Generalization)", "color": "#ff7f0e", "linestyle": "dotted"},
+		{"folder": "train_grokking_modular_division_p97_last_epoch", "label": "Grokking mod div train (Good Generalization)", "color": "#ff7f0e", "linestyle": "solid"},
+		{"folder": "train_grokking_modular_division_p97_random_weights_seed_0", "label": "Grokking mod div random weights seed 0", "color": "#000000", "linestyle": "solid"},
+		{"folder": "train_grokking_modular_division_p97_random_weights_seed_1", "label": "Grokking mod div random weights seed 1", "color": "#000000", "linestyle": "solid"},
 	]
 
 
@@ -164,10 +174,15 @@ def plot_series(
 def build_output_filename(plotted_folders: List[str], prefix: str = "hessian_rsvd_spectrum") -> str:
 	"""
 	Construct an output filename that includes all the compared run folder names.
+	Truncates or hashes when too long to avoid Windows MAX_PATH (260) errors.
 	"""
 	slug = "_".join(plotted_folders)
-	return f"{prefix}_{slug}.png"
-
+	max_slug_len = 120  # leave room for path + prefix + .png
+	if len(slug) <= max_slug_len:
+		return f"{prefix}_{slug}.png"
+	import hashlib
+	short = hashlib.md5(slug.encode()).hexdigest()[:10]
+	return f"{prefix}_{len(plotted_folders)}_series_{short}.png"
 
 def main():
 	parser = argparse.ArgumentParser(description="Plot and compare Hessian RSVD eigenvalue spectra from saved outputs.")
